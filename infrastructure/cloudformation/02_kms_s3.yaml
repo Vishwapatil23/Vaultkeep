@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VaultKeep Cryptographic Storage: AWS KMS Customer Managed Key and Private Amazon S3 Bucket'
+
+Parameters:
+  BucketNamePrefix:
+    Type: String
+    Default: 'vaultkeep-encrypted-documents'
+    Description: S3 Bucket prefix for document ciphertext storage
+
+Resources:
+  VaultKeepKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'VaultKeep Envelope Encryption Master Key (Customer Managed Key)'
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: 'vaultkeep-key-policy'
+        Statement:
+          - Sid: 'EnableIAMUserPermissions'
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: 'AllowEC2AndLambdaCryptoOperations'
+            Effect: Allow
+            Principal:
+              AWS: '*'
+            Action:
+              - 'kms:GenerateDataKey'
+              - 'kms:Decrypt'
+              - 'kms:DescribeKey'
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'kms:CallerAccount': !Sub '${AWS::AccountId}'
+      Tags:
+        - Key: Project
+          Value: VaultKeep
+
+  VaultKeepKMSAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: 'alias/vaultkeep-master-key'
+      TargetKeyId: !Ref VaultKeepKMSKey
+
+  EncryptedDocumentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${BucketNamePrefix}-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'aws:kms'
+              KMSMasterKeyId: !GetAtt VaultKeepKMSKey.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Project
+          Value: VaultKeep
+
+Outputs:
+  KMSKeyArn:
+    Value: !GetAtt VaultKeepKMSKey.Arn
+    Export:
+      Name: VaultKeep-KMSKeyArn
+  KMSKeyId:
+    Value: !Ref VaultKeepKMSKey
+    Export:
+      Name: VaultKeep-KMSKeyId
+  S3BucketName:
+    Value: !Ref EncryptedDocumentBucket
+    Export:
+      Name: VaultKeep-S3BucketName

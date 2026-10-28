@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VaultKeep Compute Tier: EC2 Auto Scaling Group behind Application Load Balancer with IAM Profile'
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: 't3.micro'
+    Description: Compute instance size
+
+Resources:
+  # IAM Role for EC2 Instance
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: VaultKeep-EC2-Backend-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+        - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+      Policies:
+        - PolicyName: VaultKeepApplicationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: 'S3DocumentStorageAccess'
+                Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:GetObject'
+                  - 's3:DeleteObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !Sub 'arn:aws:s3:::vaultkeep-encrypted-documents-${AWS::AccountId}'
+                  - !Sub 'arn:aws:s3:::vaultkeep-encrypted-documents-${AWS::AccountId}/*'
+              - Sid: 'KMSCryptoAccess'
+                Effect: Allow
+                Action:
+                  - 'kms:GenerateDataKey'
+                  - 'kms:Decrypt'
+                  - 'kms:DescribeKey'
+                Resource: '*'
+              - Sid: 'SSMParametersAccess'
+                Effect: Allow
+                Action:
+                  - 'ssm:GetParameter'
+                  - 'ssm:GetParameters'
+                  - 'ssm:GetParametersByPath'
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/vaultkeep/*'
+              - Sid: 'CloudWatchCustomMetrics'
+                Effect: Allow
+                Action:
+                  - 'cloudwatch:PutMetricData'
+                Resource: '*'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2InstanceRole
+
+  # Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: vaultkeep-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets:
+        - Fn::ImportValue: VaultKeep-PublicSubnet1
+        - Fn::ImportValue: VaultKeep-PublicSubnet2
+      SecurityGroups:
+        - Fn::ImportValue: VaultKeep-ALBSGId
+      Tags:
+        - Key: Project
+          Value: VaultKeep
+
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: vaultkeep-backend-tg
+      Port: 5000
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: VaultKeep-VpcId
+      TargetType: instance
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: '200'
+      Tags:
+        - Key: Project
+          Value: VaultKeep
+
+  ALBListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # Launch Template
+  EC2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: vaultkeep-backend-lt
+      LaunchTemplateData:
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Arn: !GetAtt EC2InstanceProfile.Arn
+        SecurityGroupIds:
+          - Fn::ImportValue: VaultKeep-AppSGId
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum update -y
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+            yum install -y nodejs git
+            mkdir -p /opt/vaultkeep
+            echo "VaultKeep backend instance ready" > /opt/vaultkeep/status.txt
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: VaultKeep-Backend-Instance
+              - Key: Project
+                Value: VaultKeep
+
+  # Auto Scaling Group
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: vaultkeep-asg
+      MinSize: '1'
+      MaxSize: '2'
+      DesiredCapacity: '1'
+      VPCZoneIdentifier:
+        - Fn::ImportValue: VaultKeep-PrivateAppSubnet1
+        - Fn::ImportValue: VaultKeep-PrivateAppSubnet2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref EC2LaunchTemplate
+        Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
+      TargetGroupARNs:
+        - !Ref ALBTargetGroup
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+      Tags:
+        - Key: Name
+          Value: VaultKeep-ASG-Instance
+          PropagateAtLaunch: true
+
+Outputs:
+  ALBDNSName:
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: VaultKeep-ALBDNSName
+  TargetGroupArn:
+    Value: !Ref ALBTargetGroup

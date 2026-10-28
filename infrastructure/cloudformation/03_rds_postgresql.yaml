@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VaultKeep Database Tier: Amazon RDS for PostgreSQL in Private Subnets'
+
+Parameters:
+  DBMasterUsername:
+    Type: String
+    Default: 'vaultkeep_admin'
+  DBMasterPassword:
+    Type: String
+    NoEcho: true
+    Default: 'VaultKeepSecureDevPassword2026!'
+  DBInstanceClass:
+    Type: String
+    Default: 'db.t4g.micro'
+    Description: Cost-conscious instance class suitable for academic demonstration
+  AllocatedStorage:
+    Type: Number
+    Default: 20
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: 'Private Database Subnets for VaultKeep RDS'
+      SubnetIds:
+        - Fn::ImportValue: VaultKeep-PrivateDBSubnet1
+        - Fn::ImportValue: VaultKeep-PrivateDBSubnet2
+      Tags:
+        - Key: Name
+          Value: VaultKeep-DB-Subnet-Group
+
+  PostgreSQLInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: vaultkeep-postgresql-db
+      Engine: postgres
+      EngineVersion: '15.7'
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref AllocatedStorage
+      StorageType: gp3
+      MasterUsername: !Ref DBMasterUsername
+      MasterUserPassword: !Ref DBMasterPassword
+      DBName: vaultkeep_db
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - Fn::ImportValue: VaultKeep-DBSGId
+      PubliclyAccessible: false
+      MultiAZ: false
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      DeletionProtection: false
+      Tags:
+        - Key: Project
+          Value: VaultKeep
+
+Outputs:
+  DBEndpoint:
+    Value: !GetAtt PostgreSQLInstance.Endpoint.Address
+    Export:
+      Name: VaultKeep-DBEndpoint
+  DBPort:
+    Value: !GetAtt PostgreSQLInstance.Endpoint.Port
+    Export:
+      Name: VaultKeep-DBPort

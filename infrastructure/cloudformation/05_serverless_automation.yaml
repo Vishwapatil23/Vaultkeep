@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VaultKeep Automation & Observability: EventBridge Rule, Lambda Inactivity Engine, SNS Topics, and CloudWatch Alarms'
+
+Resources:
+  # 1. Amazon SNS Topics
+  InactivityAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: vaultkeep-inactivity-alerts
+      DisplayName: 'VaultKeep Inactivity Security Alerts'
+      Tags:
+        - Key: Project
+          Value: VaultKeep
+
+  AccessGrantedTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: vaultkeep-access-granted
+      DisplayName: 'VaultKeep Legacy Document Access Granted'
+      Tags:
+        - Key: Project
+          Value: VaultKeep
+
+  # 2. Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: VaultKeep-Lambda-InactivityWorker-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole'
+      Policies:
+        - PolicyName: VaultKeepSNSPublishPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sns:Publish'
+                Resource:
+                  - !Ref InactivityAlertsTopic
+                  - !Ref AccessGrantedTopic
+
+  # 3. AWS Lambda Function
+  InactivityWorkerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: vaultkeep-inactivity-monitor
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          SNS_INACTIVITY_TOPIC_ARN: !Ref InactivityAlertsTopic
+          SNS_ACCESS_GRANTED_TOPIC_ARN: !Ref AccessGrantedTopic
+          DB_HOST:
+            Fn::ImportValue: VaultKeep-DBEndpoint
+          DB_NAME: vaultkeep_db
+          DB_USER: vaultkeep_admin
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log("[VaultKeep EventBridge Inactivity Check]", new Date().toISOString());
+            return { statusCode: 200, body: "Inactivity evaluation complete" };
+          };
+      Tags:
+        - Key: Project
+          Value: VaultKeep
+
+  # 4. Amazon EventBridge Scheduled Rule
+  DailyInactivityScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: vaultkeep-daily-inactivity-audit
+      Description: 'Scheduled cloud trigger executing VaultKeep inactivity evaluation workflow'
+      ScheduleExpression: 'rate(1 day)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt InactivityWorkerFunction.Arn
+          Id: VaultKeepInactivityWorkerTarget
+
+  PermissionForEventBridgeToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref InactivityWorkerFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailyInactivityScheduleRule.Arn
+
+  # 5. Amazon CloudWatch Alarm (Failed Decryption Attempts)
+  FailedDecryptionAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: VaultKeep-FailedDecryption-SecurityAlarm
+      AlarmDescription: 'Triggers when 3 or more failed cryptographic decryption attempts occur within 5 minutes, signaling possible tampering.'
+      MetricName: FailedDecryptionAttempts
+      Namespace: VaultKeep/Application
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref InactivityAlertsTopic
+      TreatMissingData: notBreaching
+
+Outputs:
+  InactivityTopicArn:
+    Value: !Ref InactivityAlertsTopic
+    Export:
+      Name: VaultKeep-InactivityTopicArn
+  AccessGrantedTopicArn:
+    Value: !Ref AccessGrantedTopic
+    Export:
+      Name: VaultKeep-AccessGrantedTopicArn
+  LambdaFunctionArn:
+    Value: !GetAtt InactivityWorkerFunction.Arn

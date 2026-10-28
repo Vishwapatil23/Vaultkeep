@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VaultKeep Cost Governance: AWS Budgets Alert for Student / Academic Tier Spending'
+
+Parameters:
+  BudgetAmountUSD:
+    Type: Number
+    Default: 10
+    Description: Monthly budget threshold in USD
+  NotificationEmail:
+    Type: String
+    Default: 'student.project.evaluator@vaultkeep-demo.internal'
+    Description: Email address for cost threshold notifications
+
+Resources:
+  VaultKeepProjectBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: VaultKeep-Monthly-Project-Budget
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref BudgetAmountUSD
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+
+Outputs:
+  BudgetName:
+    Value: !Ref VaultKeepProjectBudget
