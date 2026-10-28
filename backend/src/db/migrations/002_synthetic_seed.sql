@@ -5,9 +5,9 @@
 -- bcrypt hash for 'Password123!': $2a$10$vI8aWBnW3fID.ZQ4/zo1G.q1lR.Zegv7Qe3Zq5lK.R0X7K8Gk8l2a
 INSERT INTO users (id, name, email, password_hash, role, account_status, contact_verified, last_check_in_at)
 VALUES 
-    ('11111111-1111-1111-1111-111111111111', 'Alexander Vance (Synthetic Owner)', 'alex.vance@vaultkeep-demo.internal', '$2a$10$Wp7m8m9Lp9V51qWlWpC8O.P1R5z0mQ6vGgD6pCq8b7U1iV.mZ3TKG', 'OWNER', 'ACTIVE', true, CURRENT_TIMESTAMP),
-    ('22222222-2222-2222-2222-222222222222', 'Eleanor Vance (Synthetic Nominee)', 'eleanor.nominee@vaultkeep-demo.internal', '$2a$10$Wp7m8m9Lp9V51qWlWpC8O.P1R5z0mQ6vGgD6pCq8b7U1iV.mZ3TKG', 'NOMINEE', 'ACTIVE', true, CURRENT_TIMESTAMP),
-    ('33333333-3333-3333-3333-333333333333', 'Security Officer Marcus (Admin Operator)', 'admin.operator@vaultkeep-demo.internal', '$2a$10$Wp7m8m9Lp9V51qWlWpC8O.P1R5z0mQ6vGgD6pCq8b7U1iV.mZ3TKG', 'ADMIN', 'ACTIVE', true, CURRENT_TIMESTAMP)
+    ('11111111-1111-1111-1111-111111111111', 'Alexander Vance (Synthetic Owner)', 'alex.vance@vaultkeep-demo.internal', '$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG', 'OWNER', 'ACTIVE', true, CURRENT_TIMESTAMP),
+    ('22222222-2222-2222-2222-222222222222', 'Eleanor Vance (Synthetic Nominee)', 'eleanor.nominee@vaultkeep-demo.internal', '$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG', 'NOMINEE', 'ACTIVE', true, CURRENT_TIMESTAMP),
+    ('33333333-3333-3333-3333-333333333333', 'Security Officer Marcus (Admin Operator)', 'admin.operator@vaultkeep-demo.internal', '$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG', 'ADMIN', 'ACTIVE', true, CURRENT_TIMESTAMP)
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. Owner Settings for Alexander

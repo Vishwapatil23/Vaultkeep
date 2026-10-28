@@ -113,6 +113,15 @@ export class LifecycleController {
    */
   public static async evaluateInactivity(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
+      // Demonstration hook (same contract as standalone_server.js): { forceRelease: true }
+      // ends the caller's own running grace period now so the release can be shown live.
+      if (req.body?.forceRelease && req.user) {
+        const lifecycle = memoryDb.account_lifecycle.find(l => l.owner_id === req.user?.id);
+        if (lifecycle && lifecycle.current_state === 'GRACE_PERIOD') {
+          lifecycle.grace_period_ends_at = new Date(Date.now() - 1000).toISOString();
+        }
+      }
+
       const summary = await LifecycleService.evaluateInactivityEngine();
       res.json({
         message: 'Inactivity evaluation execution completed.',

@@ -47,7 +47,7 @@ const memoryStore: MemoryStore = {
       id: '11111111-1111-1111-1111-111111111111',
       name: 'Alexander Vance (Owner)',
       email: 'alex.vance@vaultkeep-demo.internal',
-      password_hash: '$2a$10$Wp7m8m9Lp9V51qWlWpC8O.P1R5z0mQ6vGgD6pCq8b7U1iV.mZ3TKG', // 'Password123!'
+      password_hash: '$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG', // 'Password123!'
       role: 'OWNER',
       account_status: 'ACTIVE',
       contact_verified: true,
@@ -59,7 +59,7 @@ const memoryStore: MemoryStore = {
       id: '22222222-2222-2222-2222-222222222222',
       name: 'Eleanor Vance (Nominee)',
       email: 'eleanor.nominee@vaultkeep-demo.internal',
-      password_hash: '$2a$10$Wp7m8m9Lp9V51qWlWpC8O.P1R5z0mQ6vGgD6pCq8b7U1iV.mZ3TKG', // 'Password123!'
+      password_hash: '$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG', // 'Password123!'
       role: 'NOMINEE',
       account_status: 'ACTIVE',
       contact_verified: true,
@@ -71,7 +71,7 @@ const memoryStore: MemoryStore = {
       id: '33333333-3333-3333-3333-333333333333',
       name: 'Security Officer Marcus (Admin)',
       email: 'admin.operator@vaultkeep-demo.internal',
-      password_hash: '$2a$10$Wp7m8m9Lp9V51qWlWpC8O.P1R5z0mQ6vGgD6pCq8b7U1iV.mZ3TKG', // 'Password123!'
+      password_hash: '$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG', // 'Password123!'
       role: 'ADMIN',
       account_status: 'ACTIVE',
       contact_verified: true,
