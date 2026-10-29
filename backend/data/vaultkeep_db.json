@@ -71,6 +71,42 @@
       "last_check_in_at": "2026-10-29T07:52:01.901Z",
       "created_at": "2026-10-29T07:52:01.901Z",
       "updated_at": "2026-10-29T07:52:01.901Z"
+    },
+    {
+      "id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "name": "RDS Live Verification Owner",
+      "email": "rds_owner_1793263854852@example.com",
+      "password_hash": "$2a$10$zg6VHvAx2m068pskmgzSpuJF3C8OUShdfbQ8.K3qqU7fJVRNetjum",
+      "role": "OWNER",
+      "account_status": "ACTIVE",
+      "contact_verified": true,
+      "last_check_in_at": "2026-10-29T08:50:55.248Z",
+      "created_at": "2026-10-29T08:50:55.248Z",
+      "updated_at": "2026-10-29T08:50:55.248Z"
+    },
+    {
+      "id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "name": "Carol Danvers",
+      "email": "owner.carol.1793264224916@gmail.com",
+      "password_hash": "$2a$10$BeUhh/6haOQ3Q2pzffPxgO1DMlrGIzM7sBcMek8W/B9PSSoJw6gNK",
+      "role": "OWNER",
+      "account_status": "ACTIVE",
+      "contact_verified": true,
+      "last_check_in_at": "2026-10-29T08:57:08.069Z",
+      "created_at": "2026-10-29T08:57:08.069Z",
+      "updated_at": "2026-10-29T08:57:08.069Z"
+    },
+    {
+      "id": "2a7d2a89-4db8-4365-b4f0-8454dd193569",
+      "name": "David Miller",
+      "email": "nominee.david.1793264224916@outlook.com",
+      "password_hash": "$2a$10$fvuOoh3ohdFftUiEDwc0me.A2KfxZz873KvNHULFutualQRQ3wfpy",
+      "role": "NOMINEE",
+      "account_status": "ACTIVE",
+      "contact_verified": true,
+      "last_check_in_at": "2026-10-29T08:57:16.681Z",
+      "created_at": "2026-10-29T08:57:16.681Z",
+      "updated_at": "2026-10-29T08:57:16.681Z"
     }
   ],
   "owner_settings": [
@@ -111,6 +147,32 @@
       "timezone": "UTC",
       "created_at": "2026-10-29T07:37:39.046Z",
       "updated_at": "2026-10-29T07:37:39.046Z"
+    },
+    {
+      "id": "a409888f-6a9c-4348-870f-d4ec80570cfe",
+      "owner_id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "check_in_interval_days": 30,
+      "grace_period_days": 7,
+      "warning_days": 5,
+      "reminder_email_enabled": true,
+      "reminder_sms_enabled": false,
+      "phone_number": null,
+      "timezone": "UTC",
+      "created_at": "2026-10-29T08:50:55.248Z",
+      "updated_at": "2026-10-29T08:50:55.248Z"
+    },
+    {
+      "id": "754fad32-fd84-45aa-b016-de62c6d719f1",
+      "owner_id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "check_in_interval_days": 30,
+      "grace_period_days": 7,
+      "warning_days": 5,
+      "reminder_email_enabled": true,
+      "reminder_sms_enabled": false,
+      "phone_number": null,
+      "timezone": "UTC",
+      "created_at": "2026-10-29T08:57:08.069Z",
+      "updated_at": "2026-10-29T08:57:08.069Z"
     }
   ],
   "nominees": [
@@ -128,6 +190,36 @@
       "verified_at": "2026-10-29T07:26:12.428Z",
       "created_at": "2026-10-29T07:26:12.428Z",
       "updated_at": "2026-10-29T07:26:12.428Z"
+    },
+    {
+      "id": "13b4b18a-f7a0-460a-a647-a8cbf9dd1fe3",
+      "owner_id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "nominee_user_id": null,
+      "full_name": "RDS Live Nominee",
+      "email": "rds_nominee_1793263861680@example.com",
+      "phone": null,
+      "relationship_type": "Family",
+      "invitation_token_hash": null,
+      "invitation_status": "ACCEPTED",
+      "invitation_expires_at": "2026-11-05T08:51:02.120Z",
+      "verified_at": "2026-10-29T08:51:04.773Z",
+      "created_at": "2026-10-29T08:51:02.120Z",
+      "updated_at": "2026-10-29T08:51:02.120Z"
+    },
+    {
+      "id": "a92f7955-88d4-40fa-8d83-df6deeeca84a",
+      "owner_id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "nominee_user_id": "2a7d2a89-4db8-4365-b4f0-8454dd193569",
+      "full_name": "David Miller",
+      "email": "nominee.david.1793264224916@outlook.com",
+      "phone": null,
+      "relationship_type": "Family",
+      "invitation_token_hash": null,
+      "invitation_status": "ACCEPTED",
+      "invitation_expires_at": "2026-11-05T08:57:11.850Z",
+      "verified_at": "2026-10-29T08:57:16.681Z",
+      "created_at": "2026-10-29T08:57:11.850Z",
+      "updated_at": "2026-10-29T08:57:11.850Z"
     }
   ],
   "documents": [
@@ -200,10 +292,60 @@
       "release_execution_state": "NONE",
       "state_transition_reason": "Account registered and activated",
       "updated_at": "2026-10-29T07:37:39.046Z"
+    },
+    {
+      "id": "65c3bf35-48ce-4f21-9a14-c1ea46f68c74",
+      "owner_id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "current_state": "ACTIVE",
+      "last_successful_check_in": "2026-10-29T08:50:55.248Z",
+      "next_check_in_deadline": "2026-11-28T08:50:55.248Z",
+      "flagged_inactive_at": null,
+      "grace_period_ends_at": null,
+      "release_execution_state": "NONE",
+      "state_transition_reason": "Account registered and activated",
+      "updated_at": "2026-10-29T08:50:55.248Z"
+    },
+    {
+      "id": "9533421a-cb47-4c60-a6fa-c6f92de25a36",
+      "owner_id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "current_state": "ACTIVE",
+      "last_successful_check_in": "2026-10-29T08:57:08.069Z",
+      "next_check_in_deadline": "2026-11-28T08:57:08.069Z",
+      "flagged_inactive_at": null,
+      "grace_period_ends_at": null,
+      "release_execution_state": "NONE",
+      "state_transition_reason": "Account registered and activated",
+      "updated_at": "2026-10-29T08:57:08.069Z"
     }
   ],
   "release_grants": [],
   "notifications": [
+    {
+      "id": "657199b3-8cb1-4c59-811f-e91397a06923",
+      "recipient_email": "nominee.david.1793264224916@outlook.com",
+      "recipient_role": "NOMINEE",
+      "notification_type": "INVITATION_SENT",
+      "owner_id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "event_reference_id": "a92f7955-88d4-40fa-8d83-df6deeeca84a",
+      "delivery_status": "PENDING_SNS_CONFIRMATION",
+      "provider_message_id": null,
+      "error_message": null,
+      "created_at": "2026-10-29T08:57:14.770Z",
+      "updated_at": "2026-10-29T08:57:14.770Z"
+    },
+    {
+      "id": "59141727-fe3c-4b56-8248-b0556a10e15c",
+      "recipient_email": "rds_nominee_1793263861680@example.com",
+      "recipient_role": "NOMINEE",
+      "notification_type": "INVITATION_SENT",
+      "owner_id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "event_reference_id": "13b4b18a-f7a0-460a-a647-a8cbf9dd1fe3",
+      "delivery_status": "PENDING_SNS_CONFIRMATION",
+      "provider_message_id": null,
+      "error_message": null,
+      "created_at": "2026-10-29T08:51:03.676Z",
+      "updated_at": "2026-10-29T08:51:03.676Z"
+    },
     {
       "id": "0f446520-85e9-4e4b-a0fe-221892e3d5b3",
       "recipient_email": "marathemahika11@gmail.com",
@@ -219,6 +361,136 @@
     }
   ],
   "audit_logs": [
+    {
+      "id": "da7f5bdf-30d4-46d1-88a3-2453db59ba31",
+      "actor_id": "f3d2b25d-a673-40d9-b011-1fbe8243cbe9",
+      "actor_email": "elena.rostova@testvault.com",
+      "actor_role": "NOMINEE",
+      "action": "USER_LOGOUT",
+      "resource_type": "SESSION",
+      "resource_id": "f3d2b25d-a673-40d9-b011-1fbe8243cbe9",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "22fba4f0-c598-42c9-a219-3c9fc5152d81",
+      "metadata": {},
+      "created_at": "2026-10-29T09:03:47.053Z"
+    },
+    {
+      "id": "a0b3ccb1-1bc9-46c7-9341-67e67b20f91b",
+      "actor_id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "actor_email": "owner.carol.1793264224916@gmail.com",
+      "actor_role": "OWNER",
+      "action": "NOMINEE_INVITED",
+      "resource_type": "NOMINEE",
+      "resource_id": "a92f7955-88d4-40fa-8d83-df6deeeca84a",
+      "outcome": "SUCCESS",
+      "ip_address": "127.0.0.1",
+      "user_agent": "VaultKeep-Internal",
+      "correlation_id": "2060fe7f-cf57-4a73-a858-94d93a5cff75",
+      "metadata": {
+        "nomineeEmail": "nominee.david.1793264224916@outlook.com",
+        "relationshipType": "Family",
+        "deliveryStatus": "PENDING_SNS_CONFIRMATION",
+        "subscriptionStatus": "PENDING_CONFIRMATION"
+      },
+      "created_at": "2026-10-29T08:57:15.047Z"
+    },
+    {
+      "id": "0ea67b40-f26c-4b92-837e-3db9d9744e6c",
+      "actor_id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "actor_email": "owner.carol.1793264224916@gmail.com",
+      "actor_role": "OWNER",
+      "action": "USER_LOGIN",
+      "resource_type": "SESSION",
+      "resource_id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "outcome": "SUCCESS",
+      "ip_address": "127.0.0.1",
+      "user_agent": "VaultKeep-Internal",
+      "correlation_id": "5f93b168-6c38-4d76-a9f0-5bec62cb80d1",
+      "metadata": {},
+      "created_at": "2026-10-29T08:57:10.253Z"
+    },
+    {
+      "id": "0f560a8f-ca34-4666-ae4b-c54bc2daa564",
+      "actor_id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "actor_email": "owner.carol.1793264224916@gmail.com",
+      "actor_role": "OWNER",
+      "action": "USER_REGISTERED",
+      "resource_type": "USER",
+      "resource_id": "85e40d87-e139-421b-b8e2-4d4180d5cc5a",
+      "outcome": "SUCCESS",
+      "ip_address": "127.0.0.1",
+      "user_agent": "VaultKeep-Internal",
+      "correlation_id": "5252b767-b4f5-43c2-9adc-f7e8d8697f52",
+      "metadata": {},
+      "created_at": "2026-10-29T08:57:08.969Z"
+    },
+    {
+      "id": "0e882924-e7fc-4286-9c42-8cc1cdb1cde1",
+      "actor_id": null,
+      "actor_email": "rds_nominee_1793263861680@example.com",
+      "actor_role": "NOMINEE",
+      "action": "NOMINEE_INVITATION_ACCEPTED",
+      "resource_type": "NOMINEE",
+      "resource_id": "13b4b18a-f7a0-460a-a647-a8cbf9dd1fe3",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "node",
+      "correlation_id": "92841a64-d870-4bc9-bb05-de912e4a8300",
+      "metadata": {},
+      "created_at": "2026-10-29T08:51:05.208Z"
+    },
+    {
+      "id": "6ce7e775-fbbf-4d66-a90d-346d5af5b171",
+      "actor_id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "actor_email": "rds_owner_1793263854852@example.com",
+      "actor_role": "OWNER",
+      "action": "NOMINEE_INVITED",
+      "resource_type": "NOMINEE",
+      "resource_id": "13b4b18a-f7a0-460a-a647-a8cbf9dd1fe3",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "node",
+      "correlation_id": "966073f3-8686-4c2e-8020-1ae0e41bc63b",
+      "metadata": {
+        "nomineeEmail": "rds_nominee_1793263861680@example.com",
+        "relationshipType": "Family",
+        "deliveryStatus": "PENDING_SNS_CONFIRMATION",
+        "subscriptionStatus": "PENDING_CONFIRMATION"
+      },
+      "created_at": "2026-10-29T08:51:03.897Z"
+    },
+    {
+      "id": "e414c2fd-5642-4708-a65f-d8368a965657",
+      "actor_id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "actor_email": "rds_owner_1793263854852@example.com",
+      "actor_role": "OWNER",
+      "action": "USER_LOGIN",
+      "resource_type": "SESSION",
+      "resource_id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "node",
+      "correlation_id": "cd2bc6b1-9203-46c4-89bf-ce056b3b7937",
+      "metadata": {},
+      "created_at": "2026-10-29T08:51:01.237Z"
+    },
+    {
+      "id": "ea8a5a76-0fce-44b4-9605-8d57e79c27d7",
+      "actor_id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "actor_email": "rds_owner_1793263854852@example.com",
+      "actor_role": "OWNER",
+      "action": "USER_REGISTERED",
+      "resource_type": "USER",
+      "resource_id": "bd3eb1b0-e0a7-45db-9803-bdfc59f495dd",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "node",
+      "correlation_id": "1bf69905-bb9c-48f4-a1fa-74edbf99a8ad",
+      "metadata": {},
+      "created_at": "2026-10-29T08:50:56.340Z"
+    },
     {
       "id": "a95c95de-d52f-4ae7-a3a6-cc04c08cd66f",
       "actor_id": "11111111-1111-1111-1111-111111111111",

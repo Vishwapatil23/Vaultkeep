@@ -19,6 +19,8 @@ export const NomineeDirectory: React.FC = () => {
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [createdLink, setCreatedLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [checkingSns, setCheckingSns] = useState<string | null>(null);
+  const [requiresSnsConfirm, setRequiresSnsConfirm] = useState(false);
 
   const fetchNominees = async () => {
     try {
@@ -63,16 +65,31 @@ export const NomineeDirectory: React.FC = () => {
         relationshipType
       });
 
-      // ONLY set createdToken and success UI when the backend successfully processes the invitation
+      // Set createdToken, link and SNS confirmation state
       setCreatedToken(res.invitationToken);
       setCreatedLink(res.invitationLink || `${window.location.origin}/?tab=accept-invitation&token=${res.invitationToken}&email=${encodeURIComponent(email.trim().toLowerCase())}`);
+      setRequiresSnsConfirm(!!res.requiresSnsConfirmation);
       await fetchNominees();
     } catch (err: any) {
       setCreatedToken(null);
       setCreatedLink(null);
+      setRequiresSnsConfirm(false);
       setModalError(err.message || 'Failed to send nominee invitation.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCheckSns = async (id: string) => {
+    setCheckingSns(id);
+    try {
+      const res = await api.checkSnsConfirmation(id);
+      alert(res.message);
+      await fetchNominees();
+    } catch (err: any) {
+      alert(err.message || 'Failed to check AWS SNS confirmation status.');
+    } finally {
+      setCheckingSns(null);
     }
   };
 
@@ -234,7 +251,54 @@ export const NomineeDirectory: React.FC = () => {
                       </span>
                     </td>
                     <td style={{ padding: '1rem' }}>
-                      <StatusBadge status={n.invitationStatus} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <StatusBadge status={n.invitationStatus} />
+                        {n.invitationStatus === 'PENDING' && (
+                          n.snsStatus === 'PENDING_CONFIRMATION' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              <span style={{
+                                backgroundColor: '#fef3c7',
+                                color: '#92400e',
+                                fontSize: '0.7rem',
+                                padding: '0.15rem 0.4rem',
+                                borderRadius: '4px',
+                                fontWeight: 600
+                              }}>
+                                AWS Confirm Pending
+                              </span>
+                              <button
+                                onClick={() => handleCheckSns(n.id)}
+                                disabled={checkingSns === n.id}
+                                title="Check if nominee clicked 'Confirm subscription' in their AWS email and dispatch invitation"
+                                style={{
+                                  backgroundColor: 'var(--bg-surface)',
+                                  border: '1px solid var(--border-color)',
+                                  color: 'var(--primary)',
+                                  fontSize: '0.7rem',
+                                  padding: '0.15rem 0.45rem',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontWeight: 600
+                                }}
+                              >
+                                {checkingSns === n.id ? 'Checking...' : 'Check & Send'}
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{
+                              backgroundColor: '#e0f2fe',
+                              color: '#0369a1',
+                              fontSize: '0.7rem',
+                              padding: '0.15rem 0.4rem',
+                              borderRadius: '4px',
+                              fontWeight: 600,
+                              width: 'fit-content'
+                            }}>
+                              SNS Verified &bull; Email Sent
+                            </span>
+                          )
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '1rem' }}>
                       <span style={{
@@ -298,7 +362,8 @@ export const NomineeDirectory: React.FC = () => {
           <div>
             <div style={{
               backgroundColor: 'var(--success-bg)',
-              color: 'var(--success)',
+              color: requiresSnsConfirm ? '#92400e' : 'var(--success)',
+              backgroundColor: requiresSnsConfirm ? '#fef3c7' : 'var(--success-bg)',
               padding: '0.85rem',
               borderRadius: 'var(--radius-md)',
               fontSize: '0.85rem',
@@ -308,7 +373,7 @@ export const NomineeDirectory: React.FC = () => {
               marginBottom: '1.25rem',
               fontWeight: 600
             }}>
-              <CheckCircle size={18} /> Invitation sent! Notification dispatched via Amazon SNS.
+              <CheckCircle size={18} /> {requiresSnsConfirm ? 'Nominee Added! AWS Subscription Confirmation Email Sent.' : 'Nominee Invited! Notification email dispatched via Amazon SNS.'}
             </div>
 
             {createdLink && (
@@ -374,7 +439,9 @@ export const NomineeDirectory: React.FC = () => {
             </div>
 
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-              AWS SNS has dispatched this notification to the nominee's inbox. If this is the first notification to this email address on this SNS Topic, AWS sends a subscription confirmation link first.
+              {requiresSnsConfirm
+                ? 'AWS SNS sent a subscription confirmation email to the nominee. AWS requires the recipient to click "Confirm subscription" in that email before SNS will deliver messages. Once confirmed, you can click "Check & Send" in the directory anytime, or send them the direct link above.'
+                : 'AWS SNS has delivered the invitation email to the nominee. They can also use the direct link above to confirm.'}
             </p>
 
             <button

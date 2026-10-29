@@ -98,6 +98,7 @@ export const api = {
     body: JSON.stringify(data)
   }),
   deleteNominee: (id: string) => request(`/nominees/${id}`, { method: 'DELETE' }),
+  checkSnsConfirmation: (nomineeId: string) => request(`/nominees/${nomineeId}/check-sns-confirmation`, { method: 'POST' }),
   verifyInvitation: (token: string) => request(`/nominees/invitations/verify?token=${encodeURIComponent(token)}`),
   acceptInvitation: (data: string | { token: string; password?: string; name?: string }) => request('/nominees/invitations/accept', {
     method: 'POST',

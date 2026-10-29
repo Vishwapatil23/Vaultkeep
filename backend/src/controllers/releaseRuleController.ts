@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { memoryDb, saveMemoryDb } from '../db';
+import { query, memoryDb, saveMemoryDb } from '../db';
 import { AuditService } from '../services/auditService';
 
 export class ReleaseRuleController {
@@ -11,6 +11,41 @@ export class ReleaseRuleController {
       return;
     }
 
+    try {
+      const result = await query(
+        `SELECT r.id, r.document_id, d.original_name as document_name, d.category as document_category,
+                r.nominee_id, n.full_name as nominee_name, n.email as nominee_email,
+                r.rule_status, r.access_duration_days, r.confirmed_at, r.created_at
+         FROM document_release_rules r
+         JOIN documents d ON d.id = r.document_id
+         JOIN nominees n ON n.id = r.nominee_id
+         WHERE r.owner_id = $1
+         ORDER BY r.created_at DESC`,
+        [req.user.id]
+      );
+
+      if (result.rows && result.rows.length > 0) {
+        const enriched = result.rows.map((row: any) => ({
+          id: row.id,
+          documentId: row.document_id,
+          documentName: row.document_name,
+          documentCategory: row.document_category,
+          nomineeId: row.nominee_id,
+          nomineeName: row.nominee_name,
+          nomineeEmail: row.nominee_email,
+          ruleStatus: row.rule_status,
+          accessDurationDays: row.access_duration_days,
+          confirmedAt: row.confirmed_at,
+          createdAt: row.created_at
+        }));
+        res.json({ releaseRules: enriched });
+        return;
+      }
+    } catch (err: any) {
+      console.warn('[ReleaseRuleController:Get:Warning]', err.message);
+    }
+
+    // Memory fallback
     const rules = memoryDb.document_release_rules.filter(r => r.owner_id === req.user?.id);
     const enriched = rules.map(rule => {
       const doc = memoryDb.documents.find(d => d.id === rule.document_id);
@@ -46,43 +81,73 @@ export class ReleaseRuleController {
       return;
     }
 
-    // Verify document belongs to owner
-    const doc = memoryDb.documents.find(d => d.id === documentId && d.owner_id === req.user?.id);
+    // Verify document belongs to owner in RDS
+    let doc: any = null;
+    try {
+      const dRes = await query('SELECT id, original_name FROM documents WHERE id = $1 AND owner_id = $2', [documentId, req.user.id]);
+      if (dRes.rows && dRes.rows.length > 0) doc = dRes.rows[0];
+    } catch {
+      doc = memoryDb.documents.find(d => d.id === documentId && d.owner_id === req.user?.id);
+    }
+    if (!doc) doc = memoryDb.documents.find(d => d.id === documentId && d.owner_id === req.user?.id);
+
     if (!doc) {
       res.status(404).json({ error: 'Document not found or does not belong to you.' });
       return;
     }
 
-    // Verify nominee belongs to owner
-    const nominee = memoryDb.nominees.find(n => n.id === nomineeId && n.owner_id === req.user?.id);
+    // Verify nominee belongs to owner in RDS
+    let nominee: any = null;
+    try {
+      const nRes = await query('SELECT id, full_name, email FROM nominees WHERE id = $1 AND owner_id = $2', [nomineeId, req.user.id]);
+      if (nRes.rows && nRes.rows.length > 0) nominee = nRes.rows[0];
+    } catch {
+      nominee = memoryDb.nominees.find(n => n.id === nomineeId && n.owner_id === req.user?.id);
+    }
+    if (!nominee) nominee = memoryDb.nominees.find(n => n.id === nomineeId && n.owner_id === req.user?.id);
+
     if (!nominee) {
       res.status(404).json({ error: 'Nominee not found or does not belong to your vault.' });
       return;
     }
 
-    // Check if rule already exists (update or create)
+    const ruleId = uuidv4();
+    const now = new Date();
+
+    // Persist or update rule in RDS
+    try {
+      await query(
+        `INSERT INTO document_release_rules (id, owner_id, document_id, nominee_id, rule_status, access_duration_days, confirmed_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $6, $7, $8)
+         ON CONFLICT (document_id, nominee_id)
+         DO UPDATE SET rule_status = 'ACTIVE', access_duration_days = EXCLUDED.access_duration_days, confirmed_at = $9, updated_at = $10`,
+        [ruleId, req.user.id, documentId, nomineeId, accessDurationDays || null, now, now, now, now, now]
+      );
+    } catch (err: any) {
+      console.warn('[ReleaseRuleController:Create:DBError]', err.message);
+    }
+
+    // Memory mirror
     let rule = memoryDb.document_release_rules.find(
       r => r.document_id === documentId && r.nominee_id === nomineeId
     );
 
-    const now = new Date().toISOString();
-
     if (rule) {
       rule.rule_status = 'ACTIVE';
       rule.access_duration_days = accessDurationDays || null;
-      rule.confirmed_at = now;
-      rule.updated_at = now;
+      rule.confirmed_at = now.toISOString();
+      rule.updated_at = now.toISOString();
     } else {
       rule = {
-        id: uuidv4(),
+        id: ruleId,
         owner_id: req.user.id,
         document_id: documentId,
         nominee_id: nomineeId,
         rule_status: 'ACTIVE',
         access_duration_days: accessDurationDays || null,
-        confirmed_at: now,
-        created_at: now,
-        updated_at: now
+        confirmed_at: now.toISOString(),
+        created_at: now.toISOString(),
+        updated_at: now.toISOString()
       };
       memoryDb.document_release_rules.push(rule);
     }
@@ -120,18 +185,21 @@ export class ReleaseRuleController {
     }
 
     const { id } = req.params;
+
+    try {
+      await query(`DELETE FROM document_release_rules WHERE id = $1 AND owner_id = $2`, [id, req.user.id]);
+    } catch (err: any) {
+      console.warn('[ReleaseRuleController:Delete:DBError]', err.message);
+    }
+
     const ruleIndex = memoryDb.document_release_rules.findIndex(
       r => r.id === id && r.owner_id === req.user?.id
     );
 
-    if (ruleIndex === -1) {
-      res.status(404).json({ error: 'Release rule not found.' });
-      return;
+    if (ruleIndex !== -1) {
+      memoryDb.document_release_rules.splice(ruleIndex, 1);
+      saveMemoryDb();
     }
-
-    const rule = memoryDb.document_release_rules[ruleIndex];
-    memoryDb.document_release_rules.splice(ruleIndex, 1);
-    saveMemoryDb();
 
     await AuditService.recordEvent({
       actorId: req.user.id,

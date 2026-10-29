@@ -4,25 +4,32 @@ import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
 
-const isPgConfigured = !process.env.USE_IN_MEMORY_DB || process.env.USE_IN_MEMORY_DB === 'false';
+const DB_HOST = process.env.DB_HOST || 'vaultkeep-postgresql-db.cyrw6icwadyc.us-east-1.rds.amazonaws.com';
+const DB_PORT = parseInt(process.env.DB_PORT || '5432', 10);
+const DB_NAME = process.env.DB_NAME || 'vaultkeep_db';
+const DB_USER = process.env.DB_USER || 'vaultkeep_admin';
+const DB_PASSWORD = process.env.DB_PASSWORD || 'VaultKeepSecureDevPassword2026!';
+const DB_SSL = process.env.DB_SSL ? process.env.DB_SSL === 'true' : true;
+
+const isPgConfigured = process.env.USE_IN_MEMORY_DB !== 'true';
 
 let pool: Pool | null = null;
 
 if (isPgConfigured) {
   pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    database: process.env.DB_NAME || 'vaultkeep_db',
-    user: process.env.DB_USER || 'vaultkeep_user',
-    password: process.env.DB_PASSWORD || 'vaultkeep_secure_dev_password',
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    host: DB_HOST,
+    port: DB_PORT,
+    database: DB_NAME,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    ssl: DB_SSL ? { rejectUnauthorized: false } : false,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 10000,
   });
 
   pool.on('error', (err) => {
-    console.warn('[PostgreSQL Pool Warning]', err.message);
+    console.error('[Amazon RDS PostgreSQL Pool Error]', err.message);
   });
 }
 
@@ -47,7 +54,7 @@ const memoryStore: MemoryStore = {
       id: '11111111-1111-1111-1111-111111111111',
       name: 'Alexander Vance (Owner)',
       email: 'alex.vance@vaultkeep-demo.internal',
-      password_hash: '$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG', // 'Password123!'
+      password_hash: '$2a$10$nybYQdcGqdxTZrmsHyfhOOy9rSUYd1f0WvrFR2L6j.LNoTFjPmmNG', // 'Password123!'
       role: 'OWNER',
       account_status: 'ACTIVE',
       contact_verified: true,
@@ -59,7 +66,7 @@ const memoryStore: MemoryStore = {
       id: '22222222-2222-2222-2222-222222222222',
       name: 'Eleanor Vance (Nominee)',
       email: 'eleanor.nominee@vaultkeep-demo.internal',
-      password_hash: '$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG', // 'Password123!'
+      password_hash: '$2a$10$nybYQdcGqdxTZrmsHyfhOOy9rSUYd1f0WvrFR2L6j.LNoTFjPmmNG', // 'Password123!'
       role: 'NOMINEE',
       account_status: 'ACTIVE',
       contact_verified: true,
@@ -71,7 +78,7 @@ const memoryStore: MemoryStore = {
       id: '33333333-3333-3333-3333-333333333333',
       name: 'Security Officer Marcus (Admin)',
       email: 'admin.operator@vaultkeep-demo.internal',
-      password_hash: '$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG', // 'Password123!'
+      password_hash: '$2a$10$nybYQdcGqdxTZrmsHyfhOOy9rSUYd1f0WvrFR2L6j.LNoTFjPmmNG', // 'Password123!'
       role: 'ADMIN',
       account_status: 'ACTIVE',
       contact_verified: true,
@@ -238,23 +245,25 @@ export const memoryDb = memoryStore;
 
 /**
  * Universal Query Execution
- * If PostgreSQL pool is active and operational, uses RDS/PostgreSQL.
- * Otherwise, falls back to the transactional memory engine.
+ * Executes directly against Amazon RDS PostgreSQL pool.
+ * Only falls back to transactional memory engine if USE_IN_MEMORY_DB=true is explicitly set.
  */
 export async function query(text: string, params: any[] = []): Promise<QueryResult<any> | { rows: any[]; rowCount: number }> {
-  if (pool && !process.env.FORCE_MEMORY_DB) {
+  if (pool && process.env.USE_IN_MEMORY_DB !== 'true') {
     try {
       const res = await pool.query(text, params);
       return res;
     } catch (err: any) {
-      // Fallback to memory store if pg connection refused
-      if (err.code === 'ECONNREFUSED' || err.message.includes('connect ECONNREFUSED')) {
-        return executeInMemoryQuery(text, params);
-      }
+      console.error(`[Amazon RDS PostgreSQL Query Error] Failed to execute: "${text.substring(0, 80)}..."`, err.message);
       throw err;
     }
   }
-  return executeInMemoryQuery(text, params);
+
+  if (process.env.USE_IN_MEMORY_DB === 'true') {
+    return executeInMemoryQuery(text, params);
+  }
+
+  throw new Error('[Database Error] Amazon RDS PostgreSQL pool is not connected and in-memory DB is disabled.');
 }
 
 /**

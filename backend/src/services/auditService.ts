@@ -1,6 +1,6 @@
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { v4 as uuidv4 } from 'uuid';
-import { memoryDb } from '../db';
+import { query, memoryDb } from '../db';
 
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const CLOUDWATCH_NAMESPACE = process.env.CLOUDWATCH_NAMESPACE || 'VaultKeep/Application';
@@ -32,6 +32,7 @@ export class AuditService {
   public static async recordEvent(entry: AuditLogEntry): Promise<any> {
     const logId = uuidv4();
     const correlationId = entry.correlationId || uuidv4();
+    const now = new Date();
 
     const record = {
       id: logId,
@@ -46,9 +47,35 @@ export class AuditService {
       user_agent: entry.userAgent || 'VaultKeep-Internal',
       correlation_id: correlationId,
       metadata: entry.metadata || {},
-      created_at: new Date().toISOString()
+      created_at: now.toISOString()
     };
 
+    // 1. Persist to Amazon RDS PostgreSQL
+    try {
+      await query(
+        `INSERT INTO audit_logs (id, actor_id, actor_email, actor_role, action, resource_type, resource_id, outcome, ip_address, user_agent, correlation_id, metadata, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [
+          logId,
+          entry.actorId || null,
+          entry.actorEmail || 'SYSTEM',
+          entry.actorRole || 'SYSTEM',
+          entry.action,
+          entry.resourceType,
+          entry.resourceId || null,
+          entry.outcome,
+          entry.ipAddress || '127.0.0.1',
+          entry.userAgent || 'VaultKeep-Internal',
+          correlationId,
+          JSON.stringify(entry.metadata || {}),
+          now
+        ]
+      );
+    } catch (err: any) {
+      console.warn('[AuditService:RDS:Warning]', err.message);
+    }
+
+    // 2. Mirror in memory
     memoryDb.audit_logs.unshift(record);
 
     // Publish CloudWatch Metric for specific security and operational actions
@@ -107,15 +134,27 @@ export class AuditService {
     ipAddress?: string,
     userAgent?: string
   ) {
+    const secId = uuidv4();
+    const now = new Date();
     const secEvent = {
-      id: uuidv4(),
+      id: secId,
       event_type: eventType,
       actor_email: actorEmail,
       ip_address: ipAddress || '127.0.0.1',
       user_agent: userAgent || 'VaultKeep-Client',
       details,
-      created_at: new Date().toISOString()
+      created_at: now.toISOString()
     };
+
+    try {
+      await query(
+        `INSERT INTO security_events (id, event_type, actor_email, ip_address, user_agent, details, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [secId, eventType, actorEmail, ipAddress || '127.0.0.1', userAgent || 'VaultKeep-Client', JSON.stringify(details), now]
+      );
+    } catch (err: any) {
+      console.warn('[AuditService:SecRDS:Warning]', err.message);
+    }
 
     memoryDb.security_events.unshift(secEvent);
 
@@ -133,6 +172,19 @@ export class AuditService {
   }
 
   public static async getLogs(limit = 100, actorId?: string) {
+    try {
+      const res = await query(
+        `SELECT * FROM audit_logs
+         WHERE ($1::uuid IS NULL OR actor_id = $1)
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [actorId || null, limit]
+      );
+      if (res.rows && res.rows.length > 0) return res.rows;
+    } catch {
+      // Fallback
+    }
+
     let logs = [...memoryDb.audit_logs];
     if (actorId) {
       logs = logs.filter(l => l.actor_id === actorId);

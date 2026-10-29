@@ -2,11 +2,12 @@ import request from 'supertest';
 import app from '../src/server';
 
 describe('VaultKeep Dynamic Owner & Nominee SNS Flow Tests', () => {
-  const ownerEmail = 'owner.carol2026@gmail.com';
+  const testRunId = Date.now();
+  const ownerEmail = `owner.carol.${testRunId}@gmail.com`;
   const ownerPassword = 'OwnerSecurePass2026!';
   const ownerName = 'Carol Danvers';
 
-  const nomineeEmail = 'nominee.david2026@outlook.com';
+  const nomineeEmail = `nominee.david.${testRunId}@outlook.com`;
   const nomineePassword = 'NomineeSecurePass2026!';
   const nomineeName = 'David Miller';
 

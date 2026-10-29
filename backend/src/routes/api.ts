@@ -35,6 +35,7 @@ router.delete('/documents/:id', authenticateToken, requireRole(['OWNER']), Docum
 router.get('/nominees', authenticateToken, requireRole(['OWNER']), NomineeController.getNominees);
 router.post('/nominees', authenticateToken, requireRole(['OWNER']), NomineeController.addNominee);
 router.delete('/nominees/:id', authenticateToken, requireRole(['OWNER']), NomineeController.deleteNominee);
+router.post('/nominees/:id/check-sns-confirmation', authenticateToken, requireRole(['OWNER']), NomineeController.checkSnsConfirmation);
 
 // ================= RELEASE RULES (OWNER) =================
 router.get('/release-rules', authenticateToken, requireRole(['OWNER']), ReleaseRuleController.getRules);
