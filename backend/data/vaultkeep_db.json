@@ -1,0 +1,441 @@
+{
+  "users": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "name": "Alexander Vance (Owner)",
+      "email": "alex.vance@vaultkeep-demo.internal",
+      "password_hash": "$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG",
+      "role": "OWNER",
+      "account_status": "ACTIVE",
+      "contact_verified": true,
+      "last_check_in_at": "2026-10-29T07:26:12.427Z",
+      "created_at": "2026-10-29T07:26:12.428Z",
+      "updated_at": "2026-10-29T07:26:12.428Z"
+    },
+    {
+      "id": "22222222-2222-2222-2222-222222222222",
+      "name": "Eleanor Vance (Nominee)",
+      "email": "eleanor.nominee@vaultkeep-demo.internal",
+      "password_hash": "$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG",
+      "role": "NOMINEE",
+      "account_status": "ACTIVE",
+      "contact_verified": true,
+      "last_check_in_at": "2026-10-29T07:26:12.428Z",
+      "created_at": "2026-10-29T07:26:12.428Z",
+      "updated_at": "2026-10-29T07:26:12.428Z"
+    },
+    {
+      "id": "33333333-3333-3333-3333-333333333333",
+      "name": "Security Officer Marcus (Admin)",
+      "email": "admin.operator@vaultkeep-demo.internal",
+      "password_hash": "$2a$10$V4tQT6FvN/3KOqtCHJih0eaMnshCZ3egQJpkwt005c/vtZFEUOwoG",
+      "role": "ADMIN",
+      "account_status": "ACTIVE",
+      "contact_verified": true,
+      "last_check_in_at": "2026-10-29T07:26:12.428Z",
+      "created_at": "2026-10-29T07:26:12.428Z",
+      "updated_at": "2026-10-29T07:26:12.428Z"
+    },
+    {
+      "id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "name": "Mahika ",
+      "email": "marathemahika11@gmail.com",
+      "password_hash": "$2a$10$QRudJUSCJG8uveqGVHb84eTPTzGnlbJ4tUdeZjGFz38khHB8XGbq.",
+      "role": "OWNER",
+      "account_status": "ACTIVE",
+      "contact_verified": true,
+      "last_check_in_at": "2026-10-29T07:36:28.064Z",
+      "created_at": "2026-10-29T07:34:09.627Z",
+      "updated_at": "2026-10-29T07:34:09.627Z"
+    },
+    {
+      "id": "3b63e677-10ce-43d2-8e60-a64e173b0349",
+      "name": "Test User",
+      "email": "testuser@example.com",
+      "password_hash": "$2a$10$efFQffZRBhE6CFbPgPL2nOqfBswL14JEAepSQM1FLmtybB7AYoTDS",
+      "role": "OWNER",
+      "account_status": "ACTIVE",
+      "contact_verified": true,
+      "last_check_in_at": "2026-10-29T07:37:39.046Z",
+      "created_at": "2026-10-29T07:37:39.046Z",
+      "updated_at": "2026-10-29T07:37:39.046Z"
+    },
+    {
+      "id": "f3d2b25d-a673-40d9-b011-1fbe8243cbe9",
+      "name": "Elena Rostova",
+      "email": "elena.rostova@testvault.com",
+      "password_hash": "$2a$10$qcfYrAQrD8qQosUR21G3xO9KQw6rjwnPvTLxFCLYQYRU6d6Rt741W",
+      "role": "NOMINEE",
+      "account_status": "ACTIVE",
+      "contact_verified": true,
+      "last_check_in_at": "2026-10-29T07:52:01.901Z",
+      "created_at": "2026-10-29T07:52:01.901Z",
+      "updated_at": "2026-10-29T07:52:01.901Z"
+    }
+  ],
+  "owner_settings": [
+    {
+      "id": "44444444-4444-4444-4444-444444444444",
+      "owner_id": "11111111-1111-1111-1111-111111111111",
+      "check_in_interval_days": 30,
+      "grace_period_days": 7,
+      "warning_days": 5,
+      "reminder_email_enabled": true,
+      "reminder_sms_enabled": false,
+      "timezone": "America/New_York",
+      "created_at": "2026-10-29T07:26:12.428Z",
+      "updated_at": "2026-10-29T07:26:12.428Z"
+    },
+    {
+      "id": "39211be3-15ef-45a6-9785-234da2b7214c",
+      "owner_id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "check_in_interval_days": 90,
+      "grace_period_days": 20,
+      "warning_days": 5,
+      "reminder_email_enabled": true,
+      "reminder_sms_enabled": false,
+      "phone_number": null,
+      "timezone": "UTC",
+      "created_at": "2026-10-29T07:34:09.627Z",
+      "updated_at": "2026-10-29T07:35:07.531Z"
+    },
+    {
+      "id": "3bf4047d-dca6-4cc9-9c69-589ce9825447",
+      "owner_id": "3b63e677-10ce-43d2-8e60-a64e173b0349",
+      "check_in_interval_days": 30,
+      "grace_period_days": 7,
+      "warning_days": 5,
+      "reminder_email_enabled": true,
+      "reminder_sms_enabled": false,
+      "phone_number": null,
+      "timezone": "UTC",
+      "created_at": "2026-10-29T07:37:39.046Z",
+      "updated_at": "2026-10-29T07:37:39.046Z"
+    }
+  ],
+  "nominees": [
+    {
+      "id": "55555555-5555-5555-5555-555555555555",
+      "owner_id": "11111111-1111-1111-1111-111111111111",
+      "nominee_user_id": "22222222-2222-2222-2222-222222222222",
+      "full_name": "Eleanor Vance",
+      "email": "eleanor.nominee@vaultkeep-demo.internal",
+      "phone": "+1-555-0199",
+      "relationship_type": "Spouse",
+      "invitation_status": "ACCEPTED",
+      "invitation_token_hash": null,
+      "invitation_expires_at": null,
+      "verified_at": "2026-10-29T07:26:12.428Z",
+      "created_at": "2026-10-29T07:26:12.428Z",
+      "updated_at": "2026-10-29T07:26:12.428Z"
+    }
+  ],
+  "documents": [],
+  "document_release_rules": [],
+  "check_ins": [
+    {
+      "id": "e9ce45fb-03be-49ed-a1aa-983299e084a0",
+      "owner_id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "check_in_timestamp": "2026-10-29T07:36:28.064Z",
+      "check_in_type": "MANUAL_DASHBOARD",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "next_deadline_at": "2027-01-27T07:36:28.064Z",
+      "created_at": "2026-10-29T07:36:28.064Z"
+    }
+  ],
+  "account_lifecycle": [
+    {
+      "id": "66666666-6666-6666-6666-666666666666",
+      "owner_id": "11111111-1111-1111-1111-111111111111",
+      "current_state": "ACTIVE",
+      "last_successful_check_in": "2026-10-29T07:26:12.428Z",
+      "next_check_in_deadline": "2026-11-28T07:26:12.428Z",
+      "flagged_inactive_at": null,
+      "grace_period_ends_at": null,
+      "release_execution_state": "NONE",
+      "state_transition_reason": "Account initialized",
+      "updated_at": "2026-10-29T07:26:12.428Z"
+    },
+    {
+      "id": "c746896d-e618-454f-8893-5b9226d039aa",
+      "owner_id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "current_state": "ACTIVE",
+      "last_successful_check_in": "2026-10-29T07:36:28.064Z",
+      "next_check_in_deadline": "2027-01-27T07:36:28.064Z",
+      "flagged_inactive_at": null,
+      "grace_period_ends_at": null,
+      "release_execution_state": "NONE",
+      "state_transition_reason": "Pending release safely aborted by owner check-in",
+      "updated_at": "2026-10-29T07:36:28.064Z"
+    },
+    {
+      "id": "52e37e1d-507f-427f-96bf-aaaeb4404401",
+      "owner_id": "3b63e677-10ce-43d2-8e60-a64e173b0349",
+      "current_state": "ACTIVE",
+      "last_successful_check_in": "2026-10-29T07:37:39.046Z",
+      "next_check_in_deadline": "2026-11-28T07:37:39.046Z",
+      "flagged_inactive_at": null,
+      "grace_period_ends_at": null,
+      "release_execution_state": "NONE",
+      "state_transition_reason": "Account registered and activated",
+      "updated_at": "2026-10-29T07:37:39.046Z"
+    }
+  ],
+  "release_grants": [],
+  "notifications": [
+    {
+      "id": "0f446520-85e9-4e4b-a0fe-221892e3d5b3",
+      "recipient_email": "marathemahika11@gmail.com",
+      "recipient_role": "OWNER",
+      "notification_type": "INACTIVITY_WARNING",
+      "owner_id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "event_reference_id": "c746896d-e618-454f-8893-5b9226d039aa",
+      "delivery_status": "PUBLISHED",
+      "provider_message_id": "0cadaee1-465c-5e11-8ed4-cdbdbfcb03f9",
+      "error_message": null,
+      "created_at": "2026-10-29T07:35:50.785Z",
+      "updated_at": "2026-10-29T07:35:50.785Z"
+    }
+  ],
+  "audit_logs": [
+    {
+      "id": "58a8fbae-d31b-4209-9884-fab7df270f3a",
+      "actor_id": "11111111-1111-1111-1111-111111111111",
+      "actor_email": "alex.vance@vaultkeep-demo.internal",
+      "actor_role": "OWNER",
+      "action": "USER_LOGOUT",
+      "resource_type": "SESSION",
+      "resource_id": "11111111-1111-1111-1111-111111111111",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "824a3a47-0ec6-47a6-97ee-ae6ae2bbe65b",
+      "metadata": {},
+      "created_at": "2026-10-29T07:50:20.074Z"
+    },
+    {
+      "id": "526b5419-1529-4e40-a45a-cf576b91a21c",
+      "actor_id": "11111111-1111-1111-1111-111111111111",
+      "actor_email": "alex.vance@vaultkeep-demo.internal",
+      "actor_role": "OWNER",
+      "action": "USER_LOGIN",
+      "resource_type": "SESSION",
+      "resource_id": "11111111-1111-1111-1111-111111111111",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "df149712-83fc-495a-ac2c-7ca6e161fa9b",
+      "metadata": {},
+      "created_at": "2026-10-29T07:50:00.979Z"
+    },
+    {
+      "id": "7f979efb-bf0a-4fc7-9429-ded8ed15dfaf",
+      "actor_id": "3b63e677-10ce-43d2-8e60-a64e173b0349",
+      "actor_email": "testuser@example.com",
+      "actor_role": "OWNER",
+      "action": "USER_LOGIN",
+      "resource_type": "SESSION",
+      "resource_id": "3b63e677-10ce-43d2-8e60-a64e173b0349",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.9711",
+      "correlation_id": "fe9becca-aa09-4133-955b-f5c374e65d53",
+      "metadata": {},
+      "created_at": "2026-10-29T07:47:44.970Z"
+    },
+    {
+      "id": "d4949f96-97a1-41bb-ae7c-4ccb811d3467",
+      "actor_id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "actor_email": "marathemahika11@gmail.com",
+      "actor_role": "OWNER",
+      "action": "CHECK_IN_PERFORMED",
+      "resource_type": "CHECK_IN",
+      "resource_id": "e9ce45fb-03be-49ed-a1aa-983299e084a0",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "8d6df931-d69a-4459-9200-a64c75324a67",
+      "metadata": {
+        "previousState": "GRACE_PERIOD",
+        "newState": "ACTIVE",
+        "nextDeadline": "2027-01-27T07:36:28.064Z"
+      },
+      "created_at": "2026-10-29T07:36:28.064Z"
+    },
+    {
+      "id": "3410cd1a-eb19-4e70-b9f7-fe0531e9067c",
+      "actor_id": null,
+      "actor_email": "SYSTEM_EVENTBRIDGE_LAMBDA",
+      "actor_role": "SYSTEM",
+      "action": "LIFECYCLE_TRANSITION_GRACE_PERIOD",
+      "resource_type": "ACCOUNT_LIFECYCLE",
+      "resource_id": "c746896d-e618-454f-8893-5b9226d039aa",
+      "outcome": "SUCCESS",
+      "ip_address": "127.0.0.1",
+      "user_agent": "VaultKeep-Internal",
+      "correlation_id": "fb40b3c9-1be9-4eee-aaa9-0ac0631f38df",
+      "metadata": {
+        "ownerId": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+        "graceEnd": "2026-11-18T07:35:48.071Z"
+      },
+      "created_at": "2026-10-29T07:35:50.786Z"
+    },
+    {
+      "id": "ba2ae1eb-0127-4872-8ac8-dc615a42ce1f",
+      "actor_id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "actor_email": "marathemahika11@gmail.com",
+      "actor_role": "OWNER",
+      "action": "LIFECYCLE_POLICY_UPDATED",
+      "resource_type": "OWNER_SETTINGS",
+      "resource_id": "39211be3-15ef-45a6-9785-234da2b7214c",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "b832054c-f323-48c6-9c84-8d8b33bb9010",
+      "metadata": {
+        "checkInIntervalDays": 90,
+        "gracePeriodDays": 20,
+        "warningDays": 5
+      },
+      "created_at": "2026-10-29T07:35:07.531Z"
+    },
+    {
+      "id": "9f4b5647-f07a-475f-8fa4-eaedbc7cd60d",
+      "actor_id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "actor_email": "marathemahika11@gmail.com",
+      "actor_role": "OWNER",
+      "action": "LIFECYCLE_POLICY_UPDATED",
+      "resource_type": "OWNER_SETTINGS",
+      "resource_id": "39211be3-15ef-45a6-9785-234da2b7214c",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "f08adf0b-ae90-421f-97e5-3920b60a3e65",
+      "metadata": {
+        "checkInIntervalDays": 90,
+        "gracePeriodDays": 20,
+        "warningDays": 5
+      },
+      "created_at": "2026-10-29T07:34:58.426Z"
+    },
+    {
+      "id": "2bfc6c5b-69c8-4d2f-abbc-554dccadddee",
+      "actor_id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "actor_email": "marathemahika11@gmail.com",
+      "actor_role": "OWNER",
+      "action": "USER_REGISTERED",
+      "resource_type": "USER",
+      "resource_id": "8e1a4f13-735a-4b1f-86b7-ed00bfec5587",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "66e5db63-7b26-4871-bb6c-09fe9569f370",
+      "metadata": {},
+      "created_at": "2026-10-29T07:34:09.629Z"
+    },
+    {
+      "id": "3a53de8a-4d88-45ee-ab9b-c6b2a0042c8f",
+      "actor_id": null,
+      "actor_email": "marathemahika11@gmail.com",
+      "actor_role": "SYSTEM",
+      "action": "SECURITY_EVENT_LOGIN_FAILURE_USER_NOT_FOUND",
+      "resource_type": "SECURITY",
+      "resource_id": null,
+      "outcome": "DENIED",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "b21cef57-c462-4608-9e15-bc93480ea07d",
+      "metadata": {
+        "reason": "User not found"
+      },
+      "created_at": "2026-10-29T07:32:31.669Z"
+    },
+    {
+      "id": "263b72c3-6ce5-42a1-89de-10d286204ad2",
+      "actor_id": null,
+      "actor_email": "marathemahika11@gmail.com",
+      "actor_role": "SYSTEM",
+      "action": "SECURITY_EVENT_LOGIN_FAILURE_USER_NOT_FOUND",
+      "resource_type": "SECURITY",
+      "resource_id": null,
+      "outcome": "DENIED",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "e45fdfa8-499d-4af1-a8b5-9bf877bd322f",
+      "metadata": {
+        "reason": "User not found"
+      },
+      "created_at": "2026-10-29T07:32:28.090Z"
+    },
+    {
+      "id": "b64eb3f6-b1ae-4ad8-8994-d7d77b6f095f",
+      "actor_id": null,
+      "actor_email": "marathemahika11@gmail.com",
+      "actor_role": "SYSTEM",
+      "action": "SECURITY_EVENT_LOGIN_FAILURE_USER_NOT_FOUND",
+      "resource_type": "SECURITY",
+      "resource_id": null,
+      "outcome": "DENIED",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "correlation_id": "c6b5ff9c-58be-4ba1-89c5-f03a0e0e4df6",
+      "metadata": {
+        "reason": "User not found"
+      },
+      "created_at": "2026-10-29T07:32:17.100Z"
+    },
+    {
+      "id": "6fb3ddf3-70b9-40ac-8655-f5e7b6afa2ea",
+      "actor_id": "11111111-1111-1111-1111-111111111111",
+      "actor_email": "alex.vance@vaultkeep-demo.internal",
+      "actor_role": "OWNER",
+      "action": "SYSTEM_BOOTSTRAP",
+      "resource_type": "SYSTEM",
+      "resource_id": "INIT",
+      "outcome": "SUCCESS",
+      "ip_address": "127.0.0.1",
+      "user_agent": "System/Init",
+      "correlation_id": "0c55908e-991a-4cac-a62a-e5f31fb84b9f",
+      "metadata": {
+        "description": "VaultKeep seeded with synthetic demonstration data"
+      },
+      "created_at": "2026-10-29T07:26:12.429Z"
+    }
+  ],
+  "security_events": [
+    {
+      "id": "08719176-d150-4225-88d9-6f7ed4bccd58",
+      "event_type": "LOGIN_FAILURE_USER_NOT_FOUND",
+      "actor_email": "marathemahika11@gmail.com",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "details": {
+        "reason": "User not found"
+      },
+      "created_at": "2026-10-29T07:32:31.669Z"
+    },
+    {
+      "id": "8320ebf4-8e21-498d-97a2-7fb359a13516",
+      "event_type": "LOGIN_FAILURE_USER_NOT_FOUND",
+      "actor_email": "marathemahika11@gmail.com",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "details": {
+        "reason": "User not found"
+      },
+      "created_at": "2026-10-29T07:32:28.090Z"
+    },
+    {
+      "id": "824732f9-1a2a-4641-802b-8e6d1e227369",
+      "event_type": "LOGIN_FAILURE_USER_NOT_FOUND",
+      "actor_email": "marathemahika11@gmail.com",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "details": {
+        "reason": "User not found"
+      },
+      "created_at": "2026-10-29T07:32:17.100Z"
+    }
+  ]
+}

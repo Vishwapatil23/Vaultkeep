@@ -150,6 +150,56 @@ const memoryStore: MemoryStore = {
   security_events: []
 };
 
+import fs from 'fs';
+import path from 'path';
+
+const DB_FILE_DIR = path.resolve(__dirname, '../../data');
+const DB_FILE_PATH = path.join(DB_FILE_DIR, 'vaultkeep_db.json');
+
+export function saveMemoryDb() {
+  try {
+    if (!fs.existsSync(DB_FILE_DIR)) {
+      fs.mkdirSync(DB_FILE_DIR, { recursive: true });
+    }
+    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(memoryStore, null, 2), 'utf-8');
+  } catch (err: any) {
+    console.warn('[DB Persistence Warning] Failed to save local db:', err.message);
+  }
+}
+
+function loadMemoryDb() {
+  try {
+    if (fs.existsSync(DB_FILE_PATH)) {
+      const raw = fs.readFileSync(DB_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(raw);
+      // Merge restored collections while preserving default demo users if missing
+      for (const key of Object.keys(parsed) as (keyof MemoryStore)[]) {
+        if (Array.isArray(parsed[key]) && parsed[key].length > 0) {
+          if (key === 'users') {
+            const userMap = new Map<string, any>();
+            for (const u of memoryStore.users) {
+              userMap.set(u.email.toLowerCase(), u);
+            }
+            for (const u of parsed.users) {
+              userMap.set(u.email.toLowerCase(), u);
+            }
+            memoryStore.users = Array.from(userMap.values());
+          } else {
+            (memoryStore as any)[key] = parsed[key];
+          }
+        }
+      }
+      console.log(`[DB Persistence] Successfully loaded ${memoryStore.users.length} users and ${memoryStore.nominees.length} nominees from persistent storage.`);
+    } else {
+      saveMemoryDb();
+    }
+  } catch (err: any) {
+    console.warn('[DB Persistence Warning] Failed to load local db:', err.message);
+  }
+}
+
+loadMemoryDb();
+
 export const memoryDb = memoryStore;
 
 /**

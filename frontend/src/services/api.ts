@@ -57,6 +57,7 @@ export const api = {
   }),
   getMe: () => request('/auth/me'),
   logout: () => request('/auth/logout', { method: 'POST' }),
+  getRegisteredUsers: () => request('/auth/registered-users'),
 
   // Check-ins & Lifecycle
   performCheckIn: () => request('/check-ins', { method: 'POST' }),

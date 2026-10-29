@@ -12,6 +12,25 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
+  const handleBrandClick = () => {
+    if (!user) {
+      onTabChange('landing');
+      return;
+    }
+    if (user.role === 'NOMINEE') {
+      onTabChange('nominee-dashboard');
+    } else if (user.role === 'ADMIN') {
+      onTabChange('admin-dashboard');
+    } else {
+      onTabChange('dashboard');
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    onTabChange('login');
+  };
+
   return (
     <header style={{
       backgroundColor: 'var(--bg-card)',
@@ -26,7 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
       boxShadow: 'var(--shadow-sm)'
     }}>
       {/* Brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={() => onTabChange('dashboard')}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={handleBrandClick}>
         <div style={{
           backgroundColor: 'var(--primary)',
           color: '#fff',
@@ -126,7 +145,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onTabChange }) => {
               </span>
             </div>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               title="Sign Out"
               style={{
                 background: 'var(--bg-surface)',

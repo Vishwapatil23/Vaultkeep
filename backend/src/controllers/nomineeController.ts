@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { memoryDb } from '../db';
+import { memoryDb, saveMemoryDb } from '../db';
 import { NotificationService } from '../services/notificationService';
 import { AuditService } from '../services/auditService';
 import { EnvelopeEncryptionService } from '../crypto/envelopeEncryption';
@@ -24,6 +24,21 @@ export class NomineeController {
 
     const nominees = memoryDb.nominees.filter(n => n.owner_id === req.user?.id);
     const enriched = nominees.map(n => {
+      // Reconcile status: if nominee registered an account or verified, update to ACCEPTED
+      if (n.invitation_status === 'PENDING') {
+        const matchingUser = memoryDb.users.find(u => u.email.toLowerCase() === n.email.toLowerCase());
+        if (matchingUser || n.verified_at) {
+          n.invitation_status = 'ACCEPTED';
+          if (matchingUser && !n.nominee_user_id) {
+            n.nominee_user_id = matchingUser.id;
+          }
+          if (!n.verified_at) {
+            n.verified_at = new Date().toISOString();
+          }
+          saveMemoryDb();
+        }
+      }
+
       const assignedRules = memoryDb.document_release_rules.filter(
         r => r.nominee_id === n.id && r.rule_status === 'ACTIVE'
       );
@@ -105,24 +120,18 @@ export class NomineeController {
     };
 
     memoryDb.nominees.push(newNominee);
+    saveMemoryDb();
 
     // Build accept invitation link for the email
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const invitationLink = `${frontendUrl}/?tab=accept-invitation&token=${rawInvitationToken}&email=${encodeURIComponent(normalizedEmail)}`;
 
-    const messageBody = `============================================================\n` +
-      `VAULTKEEP DIGITAL LEGACY NOMINEE INVITATION\n` +
-      `============================================================\n\n` +
-      `Hello ${fullName.trim()},\n\n` +
-      `${req.user.name} (${req.user.email}) has appointed you as a trusted digital legacy nominee on VaultKeep.\n\n` +
-      `In the event of confirmed extended inactivity, access to explicitly selected documents may be granted to you under their security policy.\n\n` +
-      `To accept this nomination and establish your nominee account, please click the secure link below:\n` +
-      `${invitationLink}\n\n` +
-      `Alternatively, you can manually enter this invitation token on VaultKeep:\n` +
-      `Invitation Token: ${rawInvitationToken}\n\n` +
-      `This invitation link expires in 7 days.\n` +
-      `============================================================\n` +
-      `Notice: This is an automated security notice from VaultKeep. No sensitive document plaintext or passwords are ever transmitted via notification.`;
+    const subject = 'VaultKeep nominee invitation';
+    const messageBody = `Hi ${fullName.trim()},\n` +
+      `${req.user.name} invited you to be a nominee in their VaultKeep digital legacy vault.\n\n` +
+      `Accept invitation:\n${invitationLink}\n\n` +
+      `This invitation expires in 7 days. If you weren’t expecting it, you can ignore this email.\n` +
+      `— The VaultKeep Team`;
 
     // Send invitation notification via AWS SNS
     console.log(`[NomineeController] Initiating invitation email dispatch to ${normalizedEmail} via AWS SNS...`);
@@ -132,7 +141,7 @@ export class NomineeController {
       notificationType: 'INVITATION_SENT',
       ownerId: req.user.id,
       eventReferenceId: nomineeId,
-      subject: `${req.user.name} has appointed you as a trusted digital legacy nominee`,
+      subject,
       messageBody
     });
 
@@ -188,6 +197,7 @@ export class NomineeController {
     // Revoke release rules and active grants
     memoryDb.document_release_rules = memoryDb.document_release_rules.filter(r => r.nominee_id !== id);
     memoryDb.release_grants = memoryDb.release_grants.filter(g => g.nominee_id !== id);
+    saveMemoryDb();
 
     await AuditService.recordEvent({
       actorId: req.user.id,
@@ -338,6 +348,7 @@ export class NomineeController {
     if (authUser) {
       nominee.nominee_user_id = authUser.id;
     }
+    saveMemoryDb();
 
     await AuditService.recordEvent({
       actorId: authUser?.id || null,

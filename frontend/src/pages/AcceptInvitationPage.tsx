@@ -14,7 +14,7 @@ export const AcceptInvitationPage: React.FC<AcceptInvitationPageProps> = ({
   initialEmail,
   onNavigate
 }) => {
-  const { user, login } = useAuth();
+  const { user, loginWithUser } = useAuth();
 
   // Extract from query parameters if not passed directly
   const queryParams = new URLSearchParams(window.location.search);
@@ -80,11 +80,25 @@ export const AcceptInvitationPage: React.FC<AcceptInvitationPageProps> = ({
 
       const res = await api.acceptInvitation(payload);
 
-      // If backend returned JWT token and user, log them in
+      // If backend returned JWT token and user, log them in immediately
       if (res.token && res.user) {
-        localStorage.setItem('vaultkeep_token', res.token);
-        localStorage.setItem('vaultkeep_user', JSON.stringify(res.user));
-        window.dispatchEvent(new Event('auth-token-updated'));
+        loginWithUser(res.user, res.token);
+
+        // Save to saved accounts in browser storage so it's easy to log back in
+        try {
+          const saved = JSON.parse(localStorage.getItem('vaultkeep_saved_accounts') || '[]');
+          const filtered = saved.filter((a: any) => a.email.toLowerCase() !== res.user.email.toLowerCase());
+          filtered.unshift({
+            name: res.user.name,
+            email: res.user.email.toLowerCase(),
+            password: password || undefined,
+            role: 'NOMINEE'
+          });
+          localStorage.setItem('vaultkeep_saved_accounts', JSON.stringify(filtered.slice(0, 5)));
+          localStorage.setItem('vaultkeep_last_registered_email', res.user.email.toLowerCase());
+        } catch {
+          // ignore
+        }
       }
 
       setSuccess(true);
@@ -210,16 +224,16 @@ export const AcceptInvitationPage: React.FC<AcceptInvitationPageProps> = ({
             padding: '1.25rem',
             marginBottom: '1.5rem'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-              <CheckCircle size={16} /> Verified Invitation Details
-            </div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', lineHeight: 1.6 }}>
-              <div>Appointing Owner: <strong>{invitationData.ownerName}</strong> ({invitationData.ownerEmail || 'Secured Account'})</div>
-              <div>Nominee Recipient: <strong>{invitationData.nomineeEmail}</strong></div>
-              <div>Relationship: <strong>{invitationData.relationshipType}</strong></div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                Expires: {new Date(invitationData.expiresAt).toLocaleDateString()}
-              </div>
+            <p style={{ margin: '0 0 0.5rem 0', fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>
+              Hi {invitationData.nomineeName || 'there'},
+            </p>
+            <p style={{ margin: '0 0 0.75rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+              <strong style={{ color: 'var(--primary)' }}>{invitationData.ownerName}</strong> invited you to be a nominee in their VaultKeep digital legacy vault.
+            </p>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)', paddingTop: '0.5rem' }}>
+              Nominee: <strong>{invitationData.nomineeEmail}</strong> • Relationship: <strong>{invitationData.relationshipType}</strong>
+              <br />
+              This invitation expires in 7 days. If you weren’t expecting it, you can ignore this invitation.
             </div>
           </div>
         )}
@@ -369,7 +383,7 @@ export const AcceptInvitationPage: React.FC<AcceptInvitationPageProps> = ({
               boxShadow: 'var(--shadow-sm)'
             }}
           >
-            {submitting ? 'Verifying & Accepting...' : 'Accept Nominee Invitation'}
+            {submitting ? 'Verifying & Accepting...' : 'Accept Invitation'}
           </button>
         </form>
 

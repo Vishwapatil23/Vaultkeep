@@ -19,6 +19,7 @@ router.post('/auth/register', AuthController.register);
 router.post('/auth/login', AuthController.login);
 router.get('/auth/me', authenticateToken, AuthController.me);
 router.post('/auth/logout', authenticateToken, AuthController.logout);
+router.get('/auth/registered-users', AuthController.getRegisteredUsers);
 
 // ================= INVITATIONS (PUBLIC / NOMINEE) =================
 router.get('/nominees/invitations/verify', NomineeController.verifyInvitationToken);

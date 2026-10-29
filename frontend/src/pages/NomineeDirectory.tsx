@@ -33,6 +33,11 @@ export const NomineeDirectory: React.FC = () => {
 
   useEffect(() => {
     fetchNominees();
+    // Poll every 4 seconds to reflect status changes in real-time
+    const interval = setInterval(() => {
+      fetchNominees();
+    }, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleInviteSubmit = async (e: React.FormEvent) => {
@@ -102,33 +107,55 @@ export const NomineeDirectory: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setFullName('');
-            setEmail('');
-            setPhone('');
-            setRelationshipType('Spouse');
-            setModalError(null);
-            setCreatedToken(null);
-            setIsModalOpen(true);
-          }}
-          style={{
-            backgroundColor: 'var(--primary)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            padding: '0.7rem 1.25rem',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            boxShadow: 'var(--shadow-sm)'
-          }}
-        >
-          <UserPlus size={18} /> Invite New Nominee
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            onClick={() => fetchNominees()}
+            title="Refresh nominees status"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              color: 'var(--text-main)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.7rem 1rem',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem'
+            }}
+          >
+            <RefreshCw size={16} /> Refresh
+          </button>
+
+          <button
+            onClick={() => {
+              setFullName('');
+              setEmail('');
+              setPhone('');
+              setRelationshipType('Spouse');
+              setModalError(null);
+              setCreatedToken(null);
+              setIsModalOpen(true);
+            }}
+            style={{
+              backgroundColor: 'var(--primary)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.7rem 1.25rem',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+          >
+            <UserPlus size={18} /> Invite New Nominee
+          </button>
+        </div>
       </div>
 
       {/* Nominees Grid / Table */}

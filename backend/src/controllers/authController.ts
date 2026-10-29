@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import { memoryDb } from '../db';
+import { memoryDb, saveMemoryDb } from '../db';
 import { AuditService } from '../services/auditService';
 import { AuthenticatedRequest } from '../middleware/auth';
 
@@ -91,12 +91,14 @@ export class AuthController {
     }
 
     // Check if user was registered as a pending nominee and link them
-    const pendingNominee = memoryDb.nominees.find(n => n.email.toLowerCase() === normalizedEmail);
-    if (pendingNominee) {
+    const pendingNominees = memoryDb.nominees.filter(n => n.email.toLowerCase() === normalizedEmail);
+    for (const pendingNominee of pendingNominees) {
       pendingNominee.nominee_user_id = userId;
       pendingNominee.invitation_status = 'ACCEPTED';
       pendingNominee.verified_at = now.toISOString();
     }
+
+    saveMemoryDb();
 
     await AuditService.recordEvent({
       actorId: userId,
@@ -247,5 +249,17 @@ export class AuthController {
       });
     }
     res.json({ message: 'Session closed successfully.' });
+  }
+
+  public static async getRegisteredUsers(req: Request, res: Response): Promise<void> {
+    const users = memoryDb.users.map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      isDemo: u.email.endsWith('@vaultkeep-demo.internal'),
+      createdAt: u.created_at
+    }));
+    res.json({ users });
   }
 }

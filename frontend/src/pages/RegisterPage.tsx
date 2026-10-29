@@ -21,8 +21,27 @@ export const RegisterPage: React.FC<RegisterProps> = ({ onNavigate }) => {
     setLoading(true);
 
     try {
-      await register({ name, email, password, role });
-      onNavigate(role === 'OWNER' ? 'dashboard' : 'nominee-dashboard');
+      const trimmedEmail = email.trim().toLowerCase();
+      const trimmedName = name.trim();
+      const user = await register({ name: trimmedName, email: trimmedEmail, password, role });
+
+      // Save to saved accounts in browser storage so it's easy to log back in
+      try {
+        const saved = JSON.parse(localStorage.getItem('vaultkeep_saved_accounts') || '[]');
+        const filtered = saved.filter((a: any) => a.email.toLowerCase() !== trimmedEmail);
+        filtered.unshift({
+          name: trimmedName,
+          email: trimmedEmail,
+          password: password,
+          role: user.role
+        });
+        localStorage.setItem('vaultkeep_saved_accounts', JSON.stringify(filtered.slice(0, 5)));
+        localStorage.setItem('vaultkeep_last_registered_email', trimmedEmail);
+      } catch {
+        // ignore
+      }
+
+      onNavigate(user.role === 'OWNER' ? 'dashboard' : 'nominee-dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to register account.');
     } finally {

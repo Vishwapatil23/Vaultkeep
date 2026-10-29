@@ -12,8 +12,9 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (credentials: any) => Promise<void>;
-  register: (data: any) => Promise<void>;
+  login: (credentials: any) => Promise<User>;
+  register: (data: any) => Promise<User>;
+  loginWithUser: (user: User, token: string) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -21,8 +22,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  login: async () => {},
-  register: async () => {},
+  login: async () => ({} as User),
+  register: async () => ({} as User),
+  loginWithUser: () => {},
   logout: () => {},
   refreshUser: async () => {}
 });
@@ -58,22 +60,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleExpired = () => {
       setUser(null);
     };
+
+    const handleTokenUpdated = () => {
+      const savedUser = localStorage.getItem('vaultkeep_user');
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser));
+        } catch {
+          refreshUser();
+        }
+      } else {
+        refreshUser();
+      }
+    };
+
     window.addEventListener('auth-expired', handleExpired);
-    return () => window.removeEventListener('auth-expired', handleExpired);
+    window.addEventListener('auth-token-updated', handleTokenUpdated);
+    return () => {
+      window.removeEventListener('auth-expired', handleExpired);
+      window.removeEventListener('auth-token-updated', handleTokenUpdated);
+    };
   }, []);
 
-  const login = async (credentials: any) => {
+  const login = async (credentials: any): Promise<User> => {
     const res = await api.login(credentials);
     localStorage.setItem('vaultkeep_token', res.token);
     localStorage.setItem('vaultkeep_user', JSON.stringify(res.user));
+    localStorage.setItem('vaultkeep_last_registered_email', res.user.email);
     setUser(res.user);
+    return res.user;
   };
 
-  const register = async (data: any) => {
+  const register = async (data: any): Promise<User> => {
     const res = await api.register(data);
     localStorage.setItem('vaultkeep_token', res.token);
     localStorage.setItem('vaultkeep_user', JSON.stringify(res.user));
+    localStorage.setItem('vaultkeep_last_registered_email', res.user.email);
     setUser(res.user);
+    return res.user;
+  };
+
+  const loginWithUser = (userData: User, token: string) => {
+    localStorage.setItem('vaultkeep_token', token);
+    localStorage.setItem('vaultkeep_user', JSON.stringify(userData));
+    localStorage.setItem('vaultkeep_last_registered_email', userData.email);
+    setUser(userData);
   };
 
   const logout = () => {
@@ -84,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithUser, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

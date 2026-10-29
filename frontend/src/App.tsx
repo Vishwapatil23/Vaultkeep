@@ -27,6 +27,19 @@ export const App: React.FC = () => {
     return 'dashboard';
   });
 
+  // Keep currentTab synchronized with authenticated role
+  React.useEffect(() => {
+    if (user) {
+      if (user.role === 'NOMINEE' && (currentTab === 'dashboard' || currentTab === 'login' || currentTab === 'register' || currentTab === 'landing')) {
+        setCurrentTab('nominee-dashboard');
+      } else if (user.role === 'ADMIN' && (currentTab === 'dashboard' || currentTab === 'login' || currentTab === 'register' || currentTab === 'landing')) {
+        setCurrentTab('admin-dashboard');
+      } else if (user.role === 'OWNER' && (currentTab === 'nominee-dashboard' || currentTab === 'login' || currentTab === 'register' || currentTab === 'landing')) {
+        setCurrentTab('dashboard');
+      }
+    }
+  }, [user]);
+
   if (loading) {
     return (
       <div style={{
@@ -72,7 +85,9 @@ export const App: React.FC = () => {
         {/* Owner Pages */}
         {user.role === 'OWNER' && (
           <>
-            {currentTab === 'dashboard' && <OwnerDashboard onNavigate={setCurrentTab} />}
+            {(currentTab === 'dashboard' || currentTab === 'nominee-dashboard' || currentTab === 'admin-dashboard' || currentTab === 'login' || currentTab === 'register' || currentTab === 'landing') && (
+              <OwnerDashboard onNavigate={setCurrentTab} />
+            )}
             {currentTab === 'vault' && <DocumentVault />}
             {currentTab === 'nominees' && <NomineeDirectory />}
             {currentTab === 'lifecycle' && <InactivityPolicyPage />}
@@ -84,7 +99,9 @@ export const App: React.FC = () => {
         {/* Nominee Pages */}
         {user.role === 'NOMINEE' && (
           <>
-            {currentTab === 'nominee-dashboard' && <NomineePortal activeSubTab="dashboard" />}
+            {(currentTab === 'nominee-dashboard' || currentTab === 'dashboard' || currentTab === 'admin-dashboard' || currentTab === 'login' || currentTab === 'register' || currentTab === 'landing') && (
+              <NomineePortal activeSubTab="dashboard" />
+            )}
             {currentTab === 'released-docs' && <NomineePortal activeSubTab="docs" />}
             {currentTab === 'nominee-history' && <NomineePortal activeSubTab="history" />}
           </>
@@ -93,7 +110,9 @@ export const App: React.FC = () => {
         {/* Admin Pages */}
         {user.role === 'ADMIN' && (
           <>
-            {currentTab === 'admin-dashboard' && <AdminDashboard />}
+            {(currentTab === 'admin-dashboard' || currentTab === 'dashboard' || currentTab === 'nominee-dashboard' || currentTab === 'login' || currentTab === 'register' || currentTab === 'landing') && (
+              <AdminDashboard />
+            )}
             {currentTab === 'admin-audit' && <AuditLogView />}
           </>
         )}
