@@ -5,12 +5,23 @@ import { Pool } from 'pg';
 
 dotenv.config();
 
-const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_HOST = process.env.DB_HOST;
 const DB_PORT = parseInt(process.env.DB_PORT || '5432', 10);
-const DB_NAME = process.env.DB_NAME || 'vaultkeep_db';
-const DB_USER = process.env.DB_USER || 'vaultkeep_admin';
-const DB_PASSWORD = process.env.DB_PASSWORD || 'VaultKeepSecureDevPassword2026!';
+const DB_NAME = process.env.DB_NAME;
+const DB_USER = process.env.DB_USER;
+const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_SSL = process.env.DB_SSL === 'true';
+
+const missingVars: string[] = [];
+if (!DB_HOST) missingVars.push('DB_HOST');
+if (!DB_NAME) missingVars.push('DB_NAME');
+if (!DB_USER) missingVars.push('DB_USER');
+if (!DB_PASSWORD) missingVars.push('DB_PASSWORD');
+
+if (missingVars.length > 0) {
+  console.error(`[Migration Error] Missing required database configuration environment variables: ${missingVars.join(', ')}.`);
+  process.exit(1);
+}
 
 async function runMigrations() {
   console.log('====================================================');
@@ -18,11 +29,24 @@ async function runMigrations() {
   console.log(`   Target: ${DB_HOST}:${DB_PORT}/${DB_NAME}`);
   console.log('====================================================');
 
-  const caPath = process.env.DB_CA_PATH
-    ? path.resolve(process.env.DB_CA_PATH)
-    : fs.existsSync(path.resolve(__dirname, 'certs/rds-ca-bundle.pem'))
-      ? path.resolve(__dirname, 'certs/rds-ca-bundle.pem')
-      : path.resolve(__dirname, '../../certs/rds-ca-bundle.pem');
+  const configuredCaPath = process.env.DB_CA_PATH || 'certs/rds-ca-bundle.pem';
+  let caPath = path.isAbsolute(configuredCaPath)
+    ? configuredCaPath
+    : path.resolve(process.cwd(), configuredCaPath);
+
+  if (!fs.existsSync(caPath)) {
+    const fallbackCandidates = [
+      path.resolve(__dirname, '../../certs/rds-ca-bundle.pem'),
+      path.resolve(__dirname, '../certs/rds-ca-bundle.pem'),
+      path.resolve(__dirname, 'certs/rds-ca-bundle.pem'),
+    ];
+    for (const candidate of fallbackCandidates) {
+      if (fs.existsSync(candidate)) {
+        caPath = candidate;
+        break;
+      }
+    }
+  }
 
   let sslConfig: any = false;
   if (DB_SSL) {
@@ -33,7 +57,10 @@ async function runMigrations() {
       };
       console.log(`[Migration] Using verified Amazon RDS CA certificate bundle from: ${caPath}`);
     } else {
-      sslConfig = { rejectUnauthorized: true };
+      throw new Error(
+        `[Migration Error] Amazon RDS CA bundle not found at '${caPath}'. ` +
+        `Ensure certs/rds-ca-bundle.pem exists relative to backend working directory or set DB_CA_PATH.`
+      );
     }
   }
 

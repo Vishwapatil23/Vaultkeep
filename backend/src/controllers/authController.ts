@@ -6,12 +6,15 @@ import { query } from '../db';
 import { AuditService } from '../services/auditService';
 import { AuthenticatedRequest } from '../middleware/auth';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'vaultkeep_jwt_super_secure_dev_secret_key_2026_x89a';
+if (!process.env.JWT_SECRET) {
+  throw new Error('[Security Configuration Error] Missing required JWT_SECRET environment variable.');
+}
+const JWT_SECRET: string = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 export class AuthController {
   public static async register(req: Request, res: Response): Promise<void> {
-    const { name, email, password, role = 'OWNER', phone } = req.body;
+    const { name, email, password, phone } = req.body;
 
     if (!name || !email || !password) {
       res.status(400).json({ error: 'Name, email, and password are required fields.' });
@@ -47,7 +50,9 @@ export class AuthController {
     const password_hash = await bcrypt.hash(password, saltRounds);
     const userId = uuidv4();
     const now = new Date();
-    const assignedRole = role.toUpperCase() === 'NOMINEE' ? 'NOMINEE' : role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'OWNER';
+    // Public signup strictly creates an OWNER account.
+    // Admin accounts and Nominee accounts are provisioned separately through administrative seeding or invitation workflows.
+    const assignedRole = 'OWNER';
 
     // 2. Persist new user in RDS PostgreSQL
     try {

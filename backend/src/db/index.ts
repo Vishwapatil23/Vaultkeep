@@ -6,20 +6,50 @@ import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
 
-const DB_HOST = process.env.DB_HOST || 'vaultkeep-postgresql-db.cyrw6icwadyc.us-east-1.rds.amazonaws.com';
+const DB_HOST = process.env.DB_HOST;
 const DB_PORT = parseInt(process.env.DB_PORT || '5432', 10);
-const DB_NAME = process.env.DB_NAME || 'vaultkeep_db';
-const DB_USER = process.env.DB_USER || 'vaultkeep_admin';
-const DB_PASSWORD = process.env.DB_PASSWORD || 'VaultKeepSecureDevPassword2026!';
+const DB_NAME = process.env.DB_NAME;
+const DB_USER = process.env.DB_USER;
+const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_SSL = process.env.DB_SSL ? process.env.DB_SSL === 'true' : true;
 
 const isPgConfigured = process.env.USE_IN_MEMORY_DB !== 'true';
 
-const caPath = process.env.DB_CA_PATH
-  ? path.resolve(process.env.DB_CA_PATH)
-  : fs.existsSync(path.resolve(__dirname, 'certs/rds-ca-bundle.pem'))
-    ? path.resolve(__dirname, 'certs/rds-ca-bundle.pem')
-    : path.resolve(__dirname, '../../certs/rds-ca-bundle.pem');
+if (isPgConfigured) {
+  const missingVars: string[] = [];
+  if (!DB_HOST) missingVars.push('DB_HOST');
+  if (!DB_NAME) missingVars.push('DB_NAME');
+  if (!DB_USER) missingVars.push('DB_USER');
+  if (!DB_PASSWORD) missingVars.push('DB_PASSWORD');
+
+  if (missingVars.length > 0) {
+    throw new Error(
+      `[Database Configuration Error] Missing required database configuration environment variables: ${missingVars.join(', ')}. ` +
+      `Require these parameters through environment configuration or AWS Parameter Store for deployment.`
+    );
+  }
+}
+
+// Certificate path resolution: supports relative path from backend root (certs/rds-ca-bundle.pem),
+// absolute path, or standard fallback locations
+const configuredCaPath = process.env.DB_CA_PATH || 'certs/rds-ca-bundle.pem';
+let caPath = path.isAbsolute(configuredCaPath)
+  ? configuredCaPath
+  : path.resolve(process.cwd(), configuredCaPath);
+
+if (!fs.existsSync(caPath)) {
+  const fallbackCandidates = [
+    path.resolve(__dirname, '../../certs/rds-ca-bundle.pem'),
+    path.resolve(__dirname, '../certs/rds-ca-bundle.pem'),
+    path.resolve(__dirname, 'certs/rds-ca-bundle.pem'),
+  ];
+  for (const candidate of fallbackCandidates) {
+    if (fs.existsSync(candidate)) {
+      caPath = candidate;
+      break;
+    }
+  }
+}
 
 let sslConfig: any = false;
 if (DB_SSL) {
@@ -30,7 +60,10 @@ if (DB_SSL) {
     };
     console.log(`[Amazon RDS PostgreSQL Pool] TLS enabled with verified AWS RDS CA bundle: ${caPath}`);
   } else {
-    sslConfig = { rejectUnauthorized: true };
+    throw new Error(
+      `[Database TLS Error] Amazon RDS CA bundle not found at '${caPath}'. ` +
+      `Ensure certs/rds-ca-bundle.pem exists relative to backend working directory or set DB_CA_PATH.`
+    );
   }
 }
 

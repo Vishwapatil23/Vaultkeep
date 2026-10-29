@@ -3,7 +3,10 @@ import jwt from 'jsonwebtoken';
 import { query } from '../db';
 import { AuditService } from '../services/auditService';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'vaultkeep_jwt_super_secure_dev_secret_key_2026_x89a';
+if (!process.env.JWT_SECRET) {
+  throw new Error('[Security Configuration Error] Missing required JWT_SECRET environment variable.');
+}
+const JWT_SECRET: string = process.env.JWT_SECRET;
 
 export interface AuthenticatedUser {
   id: string;
