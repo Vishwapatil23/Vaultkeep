@@ -185,8 +185,8 @@ export class NomineeController {
       invitationStatus,
       invitation_expires_at: expiresAt.toISOString(),
       invitationExpiresAt: expiresAt.toISOString(),
-      verified_at: verifiedAt ? verifiedAt.toISOString() : null,
-      verifiedAt: verifiedAt ? verifiedAt.toISOString() : null,
+      verified_at: verifiedAt ? (verifiedAt as Date).toISOString() : null,
+      verifiedAt: verifiedAt ? (verifiedAt as Date).toISOString() : null,
       created_at: now.toISOString(),
       createdAt: now.toISOString(),
       updated_at: now.toISOString()

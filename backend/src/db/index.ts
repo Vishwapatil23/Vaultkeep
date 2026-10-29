@@ -216,7 +216,7 @@ export function saveMemoryDb() {
     }
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(memoryStore, null, 2), 'utf-8');
     // Mirror update to AWS S3 in real time
-    syncDbToAwsS3().catch(() => {});
+    // In-memory backup disabled in favor of live Amazon RDS PostgreSQL
   } catch (err: any) {
     console.warn('[DB Persistence Warning] Failed to save local db:', err.message);
   }
@@ -258,7 +258,7 @@ function loadMemoryDb() {
 
 loadMemoryDb();
 // Trigger initial S3 sync
-syncDbToAwsS3().catch(() => {});
+// In-memory backup disabled in favor of live Amazon RDS PostgreSQL
 
 export const memoryDb = memoryStore;
 

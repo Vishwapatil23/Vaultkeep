@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { query, memoryDb, saveMemoryDb } from '../db';
+import { query } from '../db';
 import { LifecycleService } from '../services/lifecycleService';
 import { AuditService } from '../services/auditService';
 
@@ -25,6 +25,7 @@ export class LifecycleController {
         lifecycle: result.lifecycle
       });
     } catch (err: any) {
+      console.error('[LifecycleController:PerformCheckIn:Error]', err.message);
       res.status(500).json({ error: err.message });
     }
   }
@@ -44,16 +45,11 @@ export class LifecycleController {
          LIMIT 50`,
         [req.user.id]
       );
-      if (result.rows && result.rows.length > 0) {
-        res.json({ checkIns: result.rows });
-        return;
-      }
+      res.json({ checkIns: result.rows || [] });
     } catch (err: any) {
-      console.warn('[LifecycleController:GetCheckIns:Warning]', err.message);
+      console.error('[LifecycleController:GetCheckIns:Error]', err.message);
+      res.status(500).json({ error: `Database error retrieving check-ins: ${err.message}` });
     }
-
-    const checkIns = memoryDb.check_ins.filter(c => c.owner_id === req.user?.id);
-    res.json({ checkIns });
   }
 
   public static async getStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -62,39 +58,32 @@ export class LifecycleController {
       return;
     }
 
-    let lifecycle: any = null;
-    let settings: any = null;
-    let latestCheckIn: any = null;
-
     try {
       const lRes = await query(`SELECT * FROM account_lifecycle WHERE owner_id = $1`, [req.user.id]);
-      if (lRes.rows && lRes.rows.length > 0) lifecycle = lRes.rows[0];
+      const lifecycle = lRes.rows && lRes.rows.length > 0 ? lRes.rows[0] : null;
 
       const sRes = await query(`SELECT * FROM owner_settings WHERE owner_id = $1`, [req.user.id]);
-      if (sRes.rows && sRes.rows.length > 0) settings = sRes.rows[0];
+      const settings = sRes.rows && sRes.rows.length > 0 ? sRes.rows[0] : null;
 
       const cRes = await query(`SELECT * FROM check_ins WHERE owner_id = $1 ORDER BY check_in_timestamp DESC LIMIT 1`, [req.user.id]);
-      if (cRes.rows && cRes.rows.length > 0) latestCheckIn = cRes.rows[0];
+      const latestCheckIn = cRes.rows && cRes.rows.length > 0 ? cRes.rows[0] : null;
+
+      res.json({
+        lifecycle: lifecycle || {
+          current_state: 'ACTIVE',
+          next_check_in_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        settings: settings || {
+          check_in_interval_days: 30,
+          grace_period_days: 7,
+          warning_days: 5
+        },
+        latestCheckIn
+      });
     } catch (err: any) {
-      console.warn('[LifecycleController:GetStatus:Warning]', err.message);
+      console.error('[LifecycleController:GetStatus:Error]', err.message);
+      res.status(500).json({ error: `Database error retrieving lifecycle status: ${err.message}` });
     }
-
-    if (!lifecycle) lifecycle = memoryDb.account_lifecycle.find(l => l.owner_id === req.user?.id);
-    if (!settings) settings = memoryDb.owner_settings.find(s => s.owner_id === req.user?.id);
-    if (!latestCheckIn) latestCheckIn = memoryDb.check_ins.find(c => c.owner_id === req.user?.id);
-
-    res.json({
-      lifecycle: lifecycle || {
-        current_state: 'ACTIVE',
-        next_check_in_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      settings: settings || {
-        check_in_interval_days: 30,
-        grace_period_days: 7,
-        warning_days: 5
-      },
-      latestCheckIn
-    });
   }
 
   public static async updatePolicy(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -133,56 +122,42 @@ export class LifecycleController {
           req.user.id
         ]
       );
+
+      const sRes = await query('SELECT * FROM owner_settings WHERE owner_id = $1', [req.user.id]);
+      const settings = sRes.rows && sRes.rows.length > 0 ? sRes.rows[0] : null;
+
+      await AuditService.recordEvent({
+        actorId: req.user.id,
+        actorEmail: req.user.email,
+        actorRole: req.user.role,
+        action: 'LIFECYCLE_POLICY_UPDATED',
+        resourceType: 'OWNER_SETTINGS',
+        resourceId: settings?.id,
+        outcome: 'SUCCESS',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        metadata: { checkInIntervalDays, gracePeriodDays, warningDays }
+      });
+
+      res.json({
+        message: 'Inactivity policy settings updated successfully.',
+        settings
+      });
     } catch (err: any) {
-      console.warn('[LifecycleController:UpdatePolicy:Warning]', err.message);
+      console.error('[LifecycleController:UpdatePolicy:Error]', err.message);
+      res.status(500).json({ error: `Database error updating policy settings: ${err.message}` });
     }
-
-    let settings = memoryDb.owner_settings.find(s => s.owner_id === req.user?.id);
-    if (settings) {
-      if (checkInIntervalDays) settings.check_in_interval_days = parseInt(checkInIntervalDays, 10);
-      if (gracePeriodDays) settings.grace_period_days = parseInt(gracePeriodDays, 10);
-      if (warningDays) settings.warning_days = parseInt(warningDays, 10);
-      if (timezone) settings.timezone = timezone;
-      settings.updated_at = now.toISOString();
-      saveMemoryDb();
-    }
-
-    await AuditService.recordEvent({
-      actorId: req.user.id,
-      actorEmail: req.user.email,
-      actorRole: req.user.role,
-      action: 'LIFECYCLE_POLICY_UPDATED',
-      resourceType: 'OWNER_SETTINGS',
-      resourceId: settings?.id,
-      outcome: 'SUCCESS',
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      metadata: { checkInIntervalDays, gracePeriodDays, warningDays }
-    });
-
-    res.json({
-      message: 'Inactivity policy settings updated successfully.',
-      settings
-    });
   }
 
   public static async evaluateInactivity(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       if (req.body?.forceRelease && req.user) {
-        try {
-          await query(
-            `UPDATE account_lifecycle
-             SET grace_period_ends_at = NOW() - INTERVAL '1 second', updated_at = NOW()
-             WHERE owner_id = $1 AND current_state = 'GRACE_PERIOD'`,
-            [req.user.id]
-          );
-        } catch {
-          // Fallback
-        }
-        const lifecycle = memoryDb.account_lifecycle.find(l => l.owner_id === req.user?.id);
-        if (lifecycle && lifecycle.current_state === 'GRACE_PERIOD') {
-          lifecycle.grace_period_ends_at = new Date(Date.now() - 1000).toISOString();
-        }
+        await query(
+          `UPDATE account_lifecycle
+           SET grace_period_ends_at = NOW() - INTERVAL '1 second', updated_at = NOW()
+           WHERE owner_id = $1 AND current_state = 'GRACE_PERIOD'`,
+          [req.user.id]
+        );
       }
 
       const summary = await LifecycleService.evaluateInactivityEngine();
@@ -191,6 +166,7 @@ export class LifecycleController {
         summary
       });
     } catch (err: any) {
+      console.error('[LifecycleController:EvaluateInactivity:Error]', err.message);
       res.status(500).json({ error: err.message });
     }
   }
@@ -208,6 +184,7 @@ export class LifecycleController {
         result
       });
     } catch (err: any) {
+      console.error('[LifecycleController:SimulateInactivity:Error]', err.message);
       res.status(500).json({ error: err.message });
     }
   }

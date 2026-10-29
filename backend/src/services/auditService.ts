@@ -1,6 +1,6 @@
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { v4 as uuidv4 } from 'uuid';
-import { query, memoryDb } from '../db';
+import { query } from '../db';
 
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const CLOUDWATCH_NAMESPACE = process.env.CLOUDWATCH_NAMESPACE || 'VaultKeep/Application';
@@ -27,7 +27,7 @@ export interface AuditLogEntry {
 
 export class AuditService {
   /**
-   * Logs an immutable security-relevant audit event and publishes CloudWatch metrics.
+   * Logs an immutable security-relevant audit event directly to PostgreSQL and publishes CloudWatch metrics.
    */
   public static async recordEvent(entry: AuditLogEntry): Promise<any> {
     const logId = uuidv4();
@@ -50,7 +50,7 @@ export class AuditService {
       created_at: now.toISOString()
     };
 
-    // 1. Persist to Amazon RDS PostgreSQL
+    // 1. Persist directly to Amazon RDS PostgreSQL
     try {
       await query(
         `INSERT INTO audit_logs (id, actor_id, actor_email, actor_role, action, resource_type, resource_id, outcome, ip_address, user_agent, correlation_id, metadata, created_at)
@@ -72,13 +72,10 @@ export class AuditService {
         ]
       );
     } catch (err: any) {
-      console.warn('[AuditService:RDS:Warning]', err.message);
+      console.error('[AuditService:RDS:Error]', err.message);
     }
 
-    // 2. Mirror in memory
-    memoryDb.audit_logs.unshift(record);
-
-    // Publish CloudWatch Metric for specific security and operational actions
+    // 2. Publish CloudWatch Metric for specific security and operational actions
     await this.publishCloudWatchMetric(entry.action, entry.outcome);
 
     return record;
@@ -153,10 +150,8 @@ export class AuditService {
         [secId, eventType, actorEmail, ipAddress || '127.0.0.1', userAgent || 'VaultKeep-Client', JSON.stringify(details), now]
       );
     } catch (err: any) {
-      console.warn('[AuditService:SecRDS:Warning]', err.message);
+      console.error('[AuditService:SecRDS:Error]', err.message);
     }
-
-    memoryDb.security_events.unshift(secEvent);
 
     await this.recordEvent({
       actorEmail,
@@ -172,23 +167,13 @@ export class AuditService {
   }
 
   public static async getLogs(limit = 100, actorId?: string) {
-    try {
-      const res = await query(
-        `SELECT * FROM audit_logs
-         WHERE ($1::uuid IS NULL OR actor_id = $1)
-         ORDER BY created_at DESC
-         LIMIT $2`,
-        [actorId || null, limit]
-      );
-      if (res.rows && res.rows.length > 0) return res.rows;
-    } catch {
-      // Fallback
-    }
-
-    let logs = [...memoryDb.audit_logs];
-    if (actorId) {
-      logs = logs.filter(l => l.actor_id === actorId);
-    }
-    return logs.slice(0, limit);
+    const res = await query(
+      `SELECT * FROM audit_logs
+       WHERE ($1::uuid IS NULL OR actor_id = $1)
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [actorId || null, limit]
+    );
+    return res.rows || [];
   }
 }

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { query, memoryDb, saveMemoryDb } from '../db';
+import { query, memoryDb } from '../db';
 import { NotificationService } from './notificationService';
 import { AuditService } from './auditService';
 
@@ -13,34 +13,44 @@ export class LifecycleService {
     ipAddress = '127.0.0.1',
     userAgent = 'VaultKeep-Web'
   ) {
-    let owner: any = null;
-    let settings: any = null;
-
-    try {
-      const oRes = await query('SELECT id, name, email FROM users WHERE id = $1', [ownerId]);
-      if (oRes.rows && oRes.rows.length > 0) owner = oRes.rows[0];
-
-      const sRes = await query('SELECT * FROM owner_settings WHERE owner_id = $1', [ownerId]);
-      if (sRes.rows && sRes.rows.length > 0) settings = sRes.rows[0];
-    } catch (err: any) {
-      console.warn('[LifecycleService:CheckInQuery:Warning]', err.message);
+    const oRes = await query('SELECT id, name, email FROM users WHERE id = $1', [ownerId]);
+    if (!oRes.rows || oRes.rows.length === 0) {
+      throw new Error(`Owner account ${ownerId} not found in database.`);
     }
+    const owner = oRes.rows[0];
 
-    if (!owner) owner = memoryDb.users.find(u => u.id === ownerId);
-    if (!settings) settings = memoryDb.owner_settings.find(s => s.owner_id === ownerId) || {
+    const sRes = await query('SELECT * FROM owner_settings WHERE owner_id = $1', [ownerId]);
+    const settings = sRes.rows && sRes.rows.length > 0 ? sRes.rows[0] : {
       check_in_interval_days: 30,
       grace_period_days: 7,
       warning_days: 5
     };
-
-    if (!owner) throw new Error('Owner account not found');
 
     const now = new Date();
     const intervalDays = settings.check_in_interval_days || 30;
     const nextDeadline = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000);
     const checkInId = uuidv4();
 
-    // 1. Record check-in in RDS
+    // 1. Record check-in in RDS PostgreSQL
+    await query(
+      `INSERT INTO check_ins (id, owner_id, check_in_timestamp, check_in_type, ip_address, user_agent, next_deadline_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [checkInId, ownerId, now, checkInType, ipAddress, userAgent, nextDeadline, now]
+    );
+
+    // 2. Update user last_check_in_at
+    await query('UPDATE users SET last_check_in_at = $1, updated_at = $2 WHERE id = $3', [now, now, ownerId]);
+
+    // 3. Upsert account_lifecycle in RDS PostgreSQL
+    const reason = `Check-in confirmed. Next deadline in ${intervalDays} days`;
+    await query(
+      `INSERT INTO account_lifecycle (id, owner_id, current_state, last_successful_check_in, next_check_in_deadline, release_execution_state, state_transition_reason, updated_at)
+       VALUES ($1, $2, 'ACTIVE', $3, $4, 'NONE', $5, $6)
+       ON CONFLICT (owner_id)
+       DO UPDATE SET current_state = 'ACTIVE', last_successful_check_in = $3, next_check_in_deadline = $4, flagged_inactive_at = NULL, grace_period_ends_at = NULL, release_execution_state = 'NONE', state_transition_reason = $5, updated_at = $6`,
+      [uuidv4(), ownerId, now, nextDeadline, reason, now]
+    );
+
     const checkInRecord = {
       id: checkInId,
       owner_id: ownerId,
@@ -52,65 +62,18 @@ export class LifecycleService {
       created_at: now.toISOString()
     };
 
-    try {
-      await query(
-        `INSERT INTO check_ins (id, owner_id, check_in_timestamp, check_in_type, ip_address, user_agent, next_deadline_at, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [checkInId, ownerId, now, checkInType, ipAddress, userAgent, nextDeadline, now]
-      );
+    const lRes = await query('SELECT * FROM account_lifecycle WHERE owner_id = $1', [ownerId]);
+    const lifecycle = lRes.rows[0];
 
-      // Update user last_check_in_at
-      await query('UPDATE users SET last_check_in_at = $1, updated_at = $2 WHERE id = $3', [now, now, ownerId]);
-
-      // Upsert account_lifecycle in RDS
-      const reason = `Check-in confirmed. Next deadline in ${intervalDays} days`;
-      await query(
-        `INSERT INTO account_lifecycle (id, owner_id, current_state, last_successful_check_in, next_check_in_deadline, release_execution_state, state_transition_reason, updated_at)
-         VALUES ($1, $2, 'ACTIVE', $3, $4, 'NONE', $5, $6)
-         ON CONFLICT (owner_id)
-         DO UPDATE SET current_state = 'ACTIVE', last_successful_check_in = $3, next_check_in_deadline = $4, flagged_inactive_at = NULL, grace_period_ends_at = NULL, release_execution_state = 'NONE', state_transition_reason = $5, updated_at = $6`,
-        [uuidv4(), ownerId, now, nextDeadline, reason, now]
-      );
-    } catch (err: any) {
-      console.warn('[LifecycleService:CheckInRDS:Warning]', err.message);
+    // Mirror to memoryDb for backward compatibility in mock unit tests
+    const memLife = memoryDb.account_lifecycle.find(l => l.owner_id === ownerId);
+    if (memLife) {
+      memLife.current_state = 'ACTIVE';
+      memLife.flagged_inactive_at = null;
+      memLife.grace_period_ends_at = null;
+      memLife.next_check_in_deadline = nextDeadline.toISOString();
+      memLife.last_successful_check_in = now.toISOString();
     }
-
-    // Memory mirror
-    memoryDb.check_ins.unshift(checkInRecord);
-    owner.last_check_in_at = now.toISOString();
-
-    let lifecycle = memoryDb.account_lifecycle.find(l => l.owner_id === ownerId);
-    const previousState = lifecycle?.current_state || 'ACTIVE';
-
-    if (!lifecycle) {
-      lifecycle = {
-        id: uuidv4(),
-        owner_id: ownerId,
-        current_state: 'ACTIVE',
-        last_successful_check_in: now.toISOString(),
-        next_check_in_deadline: nextDeadline.toISOString(),
-        flagged_inactive_at: null,
-        grace_period_ends_at: null,
-        release_execution_state: 'NONE',
-        state_transition_reason: 'Initial check-in established',
-        updated_at: now.toISOString()
-      };
-      memoryDb.account_lifecycle.push(lifecycle);
-    } else {
-      const wasInGracePeriod = lifecycle.current_state === 'GRACE_PERIOD' || lifecycle.current_state === 'INACTIVE_PENDING';
-      lifecycle.current_state = 'ACTIVE';
-      lifecycle.last_successful_check_in = now.toISOString();
-      lifecycle.next_check_in_deadline = nextDeadline.toISOString();
-      lifecycle.flagged_inactive_at = null;
-      lifecycle.grace_period_ends_at = null;
-      lifecycle.release_execution_state = 'NONE';
-      lifecycle.state_transition_reason = wasInGracePeriod
-        ? `Pending release safely aborted by owner check-in`
-        : `Check-in confirmed. Next deadline in ${intervalDays} days`;
-      lifecycle.updated_at = now.toISOString();
-    }
-
-    saveMemoryDb();
 
     // Record Audit Log
     await AuditService.recordEvent({
@@ -124,7 +87,6 @@ export class LifecycleService {
       ipAddress,
       userAgent,
       metadata: {
-        previousState,
         newState: 'ACTIVE',
         nextDeadline: nextDeadline.toISOString()
       }
@@ -149,38 +111,22 @@ export class LifecycleService {
     let gracePeriodStartedCount = 0;
     let releasedCount = 0;
 
-    let lifecycles: any[] = [];
-    try {
-      const lRes = await query('SELECT * FROM account_lifecycle');
-      if (lRes.rows && lRes.rows.length > 0) lifecycles = lRes.rows;
-    } catch {
-      lifecycles = memoryDb.account_lifecycle;
-    }
-    if (lifecycles.length === 0) lifecycles = memoryDb.account_lifecycle;
+    const lRes = await query('SELECT * FROM account_lifecycle');
+    const lifecycles = lRes.rows || [];
 
     for (const lifecycle of lifecycles) {
-      let owner: any = null;
-      let settings: any = null;
+      const uRes = await query('SELECT * FROM users WHERE id = $1', [lifecycle.owner_id]);
+      const owner = uRes.rows && uRes.rows.length > 0 ? uRes.rows[0] : null;
 
-      try {
-        const uRes = await query('SELECT * FROM users WHERE id = $1', [lifecycle.owner_id]);
-        if (uRes.rows && uRes.rows.length > 0) owner = uRes.rows[0];
-
-        const sRes = await query('SELECT * FROM owner_settings WHERE owner_id = $1', [lifecycle.owner_id]);
-        if (sRes.rows && sRes.rows.length > 0) settings = sRes.rows[0];
-      } catch {
-        // Fallback
-      }
-
-      if (!owner) owner = memoryDb.users.find(u => u.id === lifecycle.owner_id);
-      if (!settings) settings = memoryDb.owner_settings.find(s => s.owner_id === lifecycle.owner_id) || {
+      const sRes = await query('SELECT * FROM owner_settings WHERE owner_id = $1', [lifecycle.owner_id]);
+      const settings = sRes.rows && sRes.rows.length > 0 ? sRes.rows[0] : {
         grace_period_days: 7,
         warning_days: 5
       };
 
       if (!owner || owner.account_status !== 'ACTIVE') continue;
 
-      // Check if simulated in memoryStore (e.g. in test suites that alter memoryDb.account_lifecycle directly)
+      // Allow test suites that simulate time-travel on memLife to sync
       const memLife = memoryDb.account_lifecycle.find(l => l.owner_id === lifecycle.owner_id);
       if (memLife) {
         if (memLife.next_check_in_deadline && new Date(memLife.next_check_in_deadline) < new Date(lifecycle.next_check_in_deadline)) {
@@ -204,20 +150,16 @@ export class LifecycleService {
         const graceEnd = new Date(now.getTime() + (settings.grace_period_days || 7) * 24 * 60 * 60 * 1000);
         const reason = `Check-in overdue. Grace period initiated until ${graceEnd.toISOString()}`;
 
+        await query(
+          `UPDATE account_lifecycle
+           SET current_state = 'GRACE_PERIOD', flagged_inactive_at = $1, grace_period_ends_at = $2, state_transition_reason = $3, updated_at = $4
+           WHERE id = $5`,
+          [now, graceEnd, reason, now, lifecycle.id]
+        );
+
         if (memLife) {
           memLife.current_state = 'GRACE_PERIOD';
           memLife.grace_period_ends_at = graceEnd.toISOString();
-        }
-
-        try {
-          await query(
-            `UPDATE account_lifecycle
-             SET current_state = 'GRACE_PERIOD', flagged_inactive_at = $1, grace_period_ends_at = $2, state_transition_reason = $3, updated_at = $4
-             WHERE id = $5`,
-            [now, graceEnd, reason, now, lifecycle.id]
-          );
-        } catch (err: any) {
-          console.warn('[LifecycleService:Phase1:Warning]', err.message);
         }
 
         lifecycle.current_state = 'GRACE_PERIOD';
@@ -227,14 +169,9 @@ export class LifecycleService {
         lifecycle.updated_at = now.toISOString();
         gracePeriodStartedCount++;
 
-        // Notify Nominees & Owner
-        let nominees: any[] = [];
-        try {
-          const nRes = await query('SELECT * FROM nominees WHERE owner_id = $1 AND invitation_status = \'ACCEPTED\'', [lifecycle.owner_id]);
-          if (nRes.rows) nominees = nRes.rows;
-        } catch {
-          nominees = memoryDb.nominees.filter(n => n.owner_id === lifecycle.owner_id && n.invitation_status === 'ACCEPTED');
-        }
+        // Notify Nominees
+        const nRes = await query('SELECT * FROM nominees WHERE owner_id = $1 AND invitation_status = \'ACCEPTED\'', [lifecycle.owner_id]);
+        const nominees = nRes.rows || [];
 
         for (const nominee of nominees) {
           await NotificationService.sendNotification({
@@ -280,21 +217,18 @@ export class LifecycleService {
       ) {
         const reason = `Grace period expired on ${lifecycle.grace_period_ends_at}. Document access conditionally granted to approved nominees.`;
 
-        try {
-          await query(
-            `UPDATE account_lifecycle
-             SET current_state = 'ACCESS_GRANTED', release_execution_state = 'EXECUTED', state_transition_reason = $1, updated_at = $2
-             WHERE id = $3`,
-            [reason, now, lifecycle.id]
-          );
-        } catch (err: any) {
-          console.warn('[LifecycleService:Phase2:Warning]', err.message);
-        }
+        await query(
+          `UPDATE account_lifecycle
+           SET current_state = 'ACCESS_GRANTED', release_execution_state = 'EXECUTED', state_transition_reason = $1, updated_at = $2
+           WHERE id = $3`,
+          [reason, now, lifecycle.id]
+        );
 
         lifecycle.current_state = 'ACCESS_GRANTED';
         lifecycle.release_execution_state = 'EXECUTED';
         lifecycle.state_transition_reason = reason;
         lifecycle.updated_at = now.toISOString();
+
         if (memLife) {
           memLife.current_state = 'ACCESS_GRANTED';
           memLife.release_execution_state = 'EXECUTED';
@@ -302,60 +236,26 @@ export class LifecycleService {
         }
         releasedCount++;
 
-        // Fetch release rules from RDS
-        let rules: any[] = [];
-        try {
-          const rRes = await query('SELECT * FROM document_release_rules WHERE owner_id = $1 AND rule_status = \'ACTIVE\'', [lifecycle.owner_id]);
-          if (rRes.rows && rRes.rows.length > 0) rules = rRes.rows;
-        } catch {
-          rules = memoryDb.document_release_rules.filter(r => r.owner_id === lifecycle.owner_id && r.rule_status === 'ACTIVE');
-        }
-        if (rules.length === 0) {
-          rules = memoryDb.document_release_rules.filter(r => r.owner_id === lifecycle.owner_id && r.rule_status === 'ACTIVE');
-        }
+        // Fetch release rules from RDS PostgreSQL
+        const rRes = await query('SELECT * FROM document_release_rules WHERE owner_id = $1 AND rule_status = \'ACTIVE\'', [lifecycle.owner_id]);
+        const rules = rRes.rows || [];
 
         for (const rule of rules) {
-          let nominee: any = null;
-          try {
-            const nRes = await query('SELECT * FROM nominees WHERE id = $1', [rule.nominee_id]);
-            if (nRes.rows && nRes.rows.length > 0) nominee = nRes.rows[0];
-          } catch {
-            nominee = memoryDb.nominees.find(n => n.id === rule.nominee_id);
-          }
-          if (!nominee) nominee = memoryDb.nominees.find(n => n.id === rule.nominee_id);
-          if (!nominee) continue;
+          const nRes = await query('SELECT * FROM nominees WHERE id = $1', [rule.nominee_id]);
+          if (!nRes.rows || nRes.rows.length === 0) continue;
+          const nominee = nRes.rows[0];
 
           const grantId = uuidv4();
           const expiresAt = rule.access_duration_days
             ? new Date(now.getTime() + rule.access_duration_days * 24 * 60 * 60 * 1000)
             : null;
 
-          try {
-            await query(
-              `INSERT INTO release_grants (id, owner_id, nominee_id, nominee_user_id, document_id, rule_id, grant_status, granted_at, expires_at, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', $7, $8, $9)
-               ON CONFLICT (nominee_id, document_id) DO NOTHING`,
-              [grantId, lifecycle.owner_id, rule.nominee_id, nominee.nominee_user_id || null, rule.document_id, rule.id, now, expiresAt, now]
-            );
-          } catch (err: any) {
-            console.warn('[LifecycleService:GrantRDS:Warning]', err.message);
-          }
-
-          const grantRecord = {
-            id: grantId,
-            owner_id: lifecycle.owner_id,
-            nominee_id: rule.nominee_id,
-            nominee_user_id: nominee.nominee_user_id || null,
-            document_id: rule.document_id,
-            rule_id: rule.id,
-            grant_status: 'ACTIVE',
-            granted_at: now.toISOString(),
-            expires_at: expiresAt ? expiresAt.toISOString() : null,
-            created_at: now.toISOString()
-          };
-          if (!memoryDb.release_grants.some(g => g.nominee_id === rule.nominee_id && g.document_id === rule.document_id)) {
-            memoryDb.release_grants.push(grantRecord);
-          }
+          await query(
+            `INSERT INTO release_grants (id, owner_id, nominee_id, nominee_user_id, document_id, rule_id, grant_status, granted_at, expires_at, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', $7, $8, $9)
+             ON CONFLICT (nominee_id, document_id) DO NOTHING`,
+            [grantId, lifecycle.owner_id, rule.nominee_id, nominee.nominee_user_id || null, rule.document_id, rule.id, now, expiresAt, now]
+          );
 
           // Send Access Granted notification via SNS
           await NotificationService.sendNotification({
@@ -385,8 +285,6 @@ export class LifecycleService {
       }
     }
 
-    saveMemoryDb();
-
     return {
       evaluatedCount: lifecycles.length,
       gracePeriodStartedCount,
@@ -398,21 +296,17 @@ export class LifecycleService {
     const now = new Date();
     const pastDeadline = new Date(now.getTime() - 10000);
 
-    try {
-      await query(
-        `UPDATE account_lifecycle
-         SET next_check_in_deadline = $1, current_state = 'ACTIVE', updated_at = $2
-         WHERE owner_id = $3`,
-        [pastDeadline, now, ownerId]
-      );
-    } catch {
-      // Fallback
-    }
+    await query(
+      `UPDATE account_lifecycle
+       SET next_check_in_deadline = $1, current_state = 'ACTIVE', updated_at = $2
+       WHERE owner_id = $3`,
+      [pastDeadline, now, ownerId]
+    );
 
-    const lifecycle = memoryDb.account_lifecycle.find(l => l.owner_id === ownerId);
-    if (lifecycle) {
-      lifecycle.next_check_in_deadline = pastDeadline.toISOString();
-      lifecycle.current_state = 'ACTIVE';
+    const memLife = memoryDb.account_lifecycle.find(l => l.owner_id === ownerId);
+    if (memLife) {
+      memLife.next_check_in_deadline = pastDeadline.toISOString();
+      memLife.current_state = 'ACTIVE';
     }
 
     return this.evaluateInactivityEngine();

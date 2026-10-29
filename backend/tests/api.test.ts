@@ -8,6 +8,7 @@ jest.setTimeout(30000);
 describe('VaultKeep End-to-End API & Lifecycle State Machine Tests', () => {
   let ownerToken: string;
   let nomineeToken: string;
+  let uploadedDocId: string;
   const ownerEmail = 'alex.vance@vaultkeep-demo.internal';
   const nomineeEmail = 'eleanor.nominee@vaultkeep-demo.internal';
   const password = 'Password123!';
@@ -55,6 +56,7 @@ describe('VaultKeep End-to-End API & Lifecycle State Machine Tests', () => {
     expect(res.body.document).toBeDefined();
     expect(res.body.document.originalName).toBe('synthetic_test_will.txt');
     expect(res.body.document.encryptionAlgorithm).toBe('AES-256-GCM');
+    uploadedDocId = res.body.document.id;
   });
 
   it('Nominee should NOT have access to released documents while owner is ACTIVE', async () => {
@@ -98,7 +100,7 @@ describe('VaultKeep End-to-End API & Lifecycle State Machine Tests', () => {
     ownerLifecycle!.release_execution_state = 'NONE';
 
     // Add a release rule for Eleanor
-    const doc = memoryDb.documents.find(d => d.owner_id === '11111111-1111-1111-1111-111111111111');
+    const doc = { id: uploadedDocId || '33333333-3333-3333-3333-333333333333' };
     if (doc) {
       await request(app)
         .post('/api/release-rules')

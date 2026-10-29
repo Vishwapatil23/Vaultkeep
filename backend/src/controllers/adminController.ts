@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { query, memoryDb } from '../db';
+import { query } from '../db';
 import { NotificationService } from '../services/notificationService';
 import { AuditService } from '../services/auditService';
 
@@ -11,12 +11,17 @@ export class AdminController {
       return;
     }
 
-    const notifications = await NotificationService.getNotificationsForUser(
-      req.user.email,
-      req.user.role === 'OWNER' ? req.user.id : undefined
-    );
+    try {
+      const notifications = await NotificationService.getNotificationsForUser(
+        req.user.email,
+        req.user.role === 'OWNER' ? req.user.id : undefined
+      );
 
-    res.json({ notifications });
+      res.json({ notifications });
+    } catch (err: any) {
+      console.error('[AdminController:GetNotifications:Error]', err.message);
+      res.status(500).json({ error: `Database error retrieving notifications: ${err.message}` });
+    }
   }
 
   public static async getAuditLogs(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -25,74 +30,75 @@ export class AdminController {
       return;
     }
 
-    const limit = parseInt(req.query.limit as string || '100', 10);
-    const actorId = req.user.role === 'ADMIN' ? undefined : req.user.id;
-    const logs = await AuditService.getLogs(limit, actorId);
+    try {
+      const limit = parseInt(req.query.limit as string || '100', 10);
+      const actorId = req.user.role === 'ADMIN' ? undefined : req.user.id;
+      const logs = await AuditService.getLogs(limit, actorId);
 
-    res.json({ auditLogs: logs });
+      res.json({ auditLogs: logs });
+    } catch (err: any) {
+      console.error('[AdminController:GetAuditLogs:Error]', err.message);
+      res.status(500).json({ error: `Database error retrieving audit logs: ${err.message}` });
+    }
   }
 
   public static async getSystemHealth(req: Request, res: Response): Promise<void> {
-    let totalUsers = memoryDb.users.length;
-    let totalOwners = memoryDb.users.filter(u => u.role === 'OWNER').length;
-    let totalNominees = memoryDb.nominees.length;
-    let totalDocuments = memoryDb.documents.filter(d => d.upload_status !== 'DELETED').length;
-    let activeGrants = memoryDb.release_grants.filter(g => g.grant_status === 'ACTIVE').length;
-    let lifecycleBreakdown: Record<string, number> = {
-      ACTIVE: memoryDb.account_lifecycle.filter(l => l.current_state === 'ACTIVE').length,
-      GRACE_PERIOD: memoryDb.account_lifecycle.filter(l => l.current_state === 'GRACE_PERIOD').length,
-      ACCESS_GRANTED: memoryDb.account_lifecycle.filter(l => l.current_state === 'ACCESS_GRANTED').length
-    };
-
     try {
+      let totalUsers = 0;
+      let totalOwners = 0;
+      let totalNominees = 0;
+      let totalDocuments = 0;
+      let activeGrants = 0;
+      let lifecycleBreakdown: Record<string, number> = { ACTIVE: 0, GRACE_PERIOD: 0, ACCESS_GRANTED: 0 };
+
       const uRes = await query('SELECT count(*)::int as count FROM users');
-      if (uRes.rows) totalUsers = uRes.rows[0].count;
+      if (uRes.rows && uRes.rows.length > 0) totalUsers = uRes.rows[0].count;
 
       const oRes = await query("SELECT count(*)::int as count FROM users WHERE role = 'OWNER'");
-      if (oRes.rows) totalOwners = oRes.rows[0].count;
+      if (oRes.rows && oRes.rows.length > 0) totalOwners = oRes.rows[0].count;
 
       const nRes = await query('SELECT count(*)::int as count FROM nominees');
-      if (nRes.rows) totalNominees = nRes.rows[0].count;
+      if (nRes.rows && nRes.rows.length > 0) totalNominees = nRes.rows[0].count;
 
       const dRes = await query("SELECT count(*)::int as count FROM documents WHERE upload_status != 'DELETED'");
-      if (dRes.rows) totalDocuments = dRes.rows[0].count;
+      if (dRes.rows && dRes.rows.length > 0) totalDocuments = dRes.rows[0].count;
 
       const gRes = await query("SELECT count(*)::int as count FROM release_grants WHERE grant_status = 'ACTIVE'");
-      if (gRes.rows) activeGrants = gRes.rows[0].count;
+      if (gRes.rows && gRes.rows.length > 0) activeGrants = gRes.rows[0].count;
 
       const lRes = await query('SELECT current_state, count(*)::int as count FROM account_lifecycle GROUP BY current_state');
       if (lRes.rows) {
-        lifecycleBreakdown = { ACTIVE: 0, GRACE_PERIOD: 0, ACCESS_GRANTED: 0 };
         for (const row of lRes.rows) {
           lifecycleBreakdown[row.current_state] = row.count;
         }
       }
-    } catch (err: any) {
-      console.warn('[AdminController:HealthQuery:Warning]', err.message);
-    }
 
-    res.json({
-      status: 'HEALTHY',
-      timestamp: new Date().toISOString(),
-      uptimeSeconds: process.uptime(),
-      version: '1.0.0',
-      database: 'AMAZON_RDS_POSTGRESQL',
-      cloudServices: {
-        kmsEnvelopeEncryption: 'OPERATIONAL (AES-256-GCM + AWS KMS)',
-        storageBackend: process.env.AWS_MOCK_SERVICES === 'true' ? 'MOCK_S3_VAULT' : 'AMAZON_S3_BUCKET',
-        snsNotificationEngine: 'OPERATIONAL (Amazon SNS)',
-        cloudWatchMetrics: 'OPERATIONAL',
-        inactivityScheduler: 'EVENTBRIDGE_AUTOMATION_READY'
-      },
-      stats: {
-        totalUsers,
-        totalOwners,
-        totalNominees,
-        totalDocuments,
-        activeGrants,
-        lifecycleBreakdown
-      }
-    });
+      res.json({
+        status: 'HEALTHY',
+        timestamp: new Date().toISOString(),
+        uptimeSeconds: process.uptime(),
+        version: '1.0.0',
+        database: 'AMAZON_RDS_POSTGRESQL',
+        cloudServices: {
+          kmsEnvelopeEncryption: 'OPERATIONAL (AES-256-GCM + AWS KMS)',
+          storageBackend: process.env.AWS_MOCK_SERVICES === 'true' ? 'MOCK_S3_VAULT' : 'AMAZON_S3_BUCKET',
+          snsNotificationEngine: 'OPERATIONAL (Amazon SNS)',
+          cloudWatchMetrics: 'OPERATIONAL',
+          inactivityScheduler: 'EVENTBRIDGE_AUTOMATION_READY'
+        },
+        stats: {
+          totalUsers,
+          totalOwners,
+          totalNominees,
+          totalDocuments,
+          activeGrants,
+          lifecycleBreakdown
+        }
+      });
+    } catch (err: any) {
+      console.error('[AdminController:Health:Error]', err.message);
+      res.status(500).json({ error: `Database error calculating system health: ${err.message}` });
+    }
   }
 
   public static async liveness(req: Request, res: Response): Promise<void> {
@@ -100,12 +106,12 @@ export class AdminController {
   }
 
   public static async readiness(req: Request, res: Response): Promise<void> {
-    let dbStatus = 'CONNECTED';
     try {
       await query('SELECT 1');
+      res.status(200).json({ status: 'READY', database: 'CONNECTED', kms: 'READY', sns: 'READY' });
     } catch (err: any) {
-      dbStatus = `DISCONNECTED: ${err.message}`;
+      console.error('[AdminController:Readiness:Error]', err.message);
+      res.status(503).json({ status: 'NOT_READY', database: `DISCONNECTED: ${err.message}` });
     }
-    res.status(200).json({ status: 'READY', database: dbStatus, kms: 'READY', sns: 'READY' });
   }
 }

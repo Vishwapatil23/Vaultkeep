@@ -1,7 +1,7 @@
 import { EnvelopeEncryptionService } from '../src/crypto/envelopeEncryption';
 
 describe('Envelope Encryption & Cryptographic Integrity Tests', () => {
-  const mockKmsKeyId = 'alias/vaultkeep-test-key';
+  const mockKmsKeyId = process.env.KMS_KEY_ID || 'alias/vaultkeep-master-key';
   const testPlaintext = Buffer.from('CONFIDENTIAL_SYNTHETIC_TEST_DOCUMENT_DATA_VAULTKEEP_2026', 'utf-8');
   const encryptionContext = { ownerId: 'test-owner-123', documentId: 'test-doc-456' };
 

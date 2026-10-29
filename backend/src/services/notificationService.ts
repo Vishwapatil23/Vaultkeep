@@ -1,6 +1,6 @@
 import { SNSClient, PublishCommand, SubscribeCommand, ListSubscriptionsByTopicCommand } from '@aws-sdk/client-sns';
 import { v4 as uuidv4 } from 'uuid';
-import { query, memoryDb } from '../db';
+import { query } from '../db';
 
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const USE_MOCK = process.env.AWS_MOCK_SERVICES === 'true';
@@ -219,11 +219,8 @@ export class NotificationService {
         [notificationId, normalizedEmail, params.recipientRole, params.notificationType, params.ownerId, params.eventReferenceId || null, deliveryStatus, providerMessageId || null, errorMessage || null, now, now]
       );
     } catch (err: any) {
-      console.warn('[NotificationService:DB:Warning] Failed to insert into RDS notifications table:', err.message);
+      console.error('[NotificationService:DB:Error] Failed to insert into RDS notifications table:', err.message);
     }
-
-    // 2. Mirror in memory
-    memoryDb.notifications.unshift(record);
 
     return {
       id: notificationId,
@@ -292,20 +289,12 @@ export class NotificationService {
   }
 
   public static async getNotificationsForUser(email: string, ownerId?: string) {
-    try {
-      const res = await query(
-        `SELECT * FROM notifications
-         WHERE LOWER(recipient_email) = LOWER($1) OR ($2::uuid IS NOT NULL AND owner_id = $2)
-         ORDER BY created_at DESC`,
-        [email, ownerId || null]
-      );
-      if (res.rows && res.rows.length > 0) return res.rows;
-    } catch {
-      // Fallback
-    }
-
-    return memoryDb.notifications.filter(
-      n => n.recipient_email.toLowerCase() === email.toLowerCase() || (ownerId && n.owner_id === ownerId)
+    const res = await query(
+      `SELECT * FROM notifications
+       WHERE LOWER(recipient_email) = LOWER($1) OR ($2::uuid IS NOT NULL AND owner_id = $2)
+       ORDER BY created_at DESC`,
+      [email, ownerId || null]
     );
+    return res.rows || [];
   }
 }
