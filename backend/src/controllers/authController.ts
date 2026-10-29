@@ -24,6 +24,12 @@ export class AuthController {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      res.status(400).json({ error: 'Please enter a valid email address (e.g., name@example.com).' });
+      return;
+    }
+
     const existing = memoryDb.users.find(u => u.email.toLowerCase() === normalizedEmail);
     if (existing) {
       res.status(409).json({ error: 'An account with this email address already exists.' });
@@ -131,6 +137,12 @@ export class AuthController {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      res.status(400).json({ error: 'Please enter a valid email address.' });
+      return;
+    }
+
     const user = memoryDb.users.find(u => u.email.toLowerCase() === normalizedEmail);
 
     if (!user) {

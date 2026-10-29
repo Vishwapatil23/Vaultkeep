@@ -1384,10 +1384,53 @@ const server = http.createServer((req, res) => {
   (async () => {
     try {
       // --- AUTH ---
+      if (pathname === '/api/auth/register' && method === 'POST') {
+        const body = await getBody();
+        const email = (body.email || '').trim().toLowerCase();
+        const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!EMAIL_REGEX.test(email)) {
+          return sendJson(400, { error: 'Please enter a valid email address (e.g., name@example.com).' });
+        }
+        const existing = memoryDb.users.find(u => u.email.toLowerCase() === email);
+        if (existing) {
+          return sendJson(409, { error: 'An account with this email address already exists.' });
+        }
+        const newUser = {
+          id: crypto.randomUUID(),
+          name: body.name || email.split('@')[0],
+          email: email,
+          role: body.role || 'OWNER',
+          account_status: 'ACTIVE',
+          created_at: new Date().toISOString()
+        };
+        memoryDb.users.push(newUser);
+        return sendJson(201, { message: 'Registered successfully', token: 'standalone-jwt-token', user: newUser });
+      }
+
       if (pathname === '/api/auth/login' && method === 'POST') {
         const body = await getBody();
-        const user = memoryDb.users.find(u => u.email === body.email) || memoryDb.users[0];
-        return sendJson(200, { message: 'Authenticated', token: 'mock-jwt-token', user });
+        const email = (body.email || '').trim().toLowerCase();
+        const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!EMAIL_REGEX.test(email)) {
+          return sendJson(400, { error: 'Please enter a valid email address.' });
+        }
+        let user = memoryDb.users.find(u => u.email.toLowerCase() === email);
+        if (!user) {
+          user = {
+            id: crypto.randomUUID(),
+            name: email.split('@')[0],
+            email: email,
+            role: 'OWNER',
+            account_status: 'ACTIVE',
+            created_at: new Date().toISOString()
+          };
+          memoryDb.users.push(user);
+        }
+        return sendJson(200, { message: 'Authenticated', token: 'standalone-jwt-token', user });
+      }
+
+      if (pathname === '/api/auth/me') {
+        return sendJson(200, { user: memoryDb.users[0] });
       }
 
       // --- CHECK-INS & LIFECYCLE ---
@@ -1598,17 +1641,94 @@ const server = http.createServer((req, res) => {
 
       if (pathname === '/api/nominees' && method === 'POST') {
         const body = await getBody();
+        const fullName = (body.fullName || '').trim();
+        const email = (body.email || '').trim().toLowerCase();
+        const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!fullName || !email) {
+          return sendJson(400, { error: 'Nominee full name and email are required fields.' });
+        }
+
+        if (!EMAIL_REGEX.test(email)) {
+          return sendJson(400, { error: 'Please enter a valid email address (e.g., name@example.com).' });
+        }
+
+        const existing = memoryDb.nominees.find(n => n.email.toLowerCase() === email);
+        if (existing) {
+          return sendJson(409, { error: `A nominee with email '${email}' has already been added to your vault.` });
+        }
+
+        const rawInvitationToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(rawInvitationToken).digest('hex');
+        const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
+        const nomineeId = crypto.randomUUID();
+        const invitationLink = `http://localhost:5173/?tab=accept-invitation&token=${rawInvitationToken}&email=${encodeURIComponent(email)}`;
+
         const newNom = {
-          id: crypto.randomUUID(),
+          id: nomineeId,
           owner_id: '11111111-1111-1111-1111-111111111111',
-          full_name: body.fullName || 'Beneficiary Name',
-          email: body.email || 'nominee@example.com',
+          full_name: fullName,
+          email: email,
+          phone: body.phone || null,
           relationship_type: body.relationshipType || 'Family',
-          invitation_status: 'ACCEPTED',
+          invitation_token_hash: tokenHash,
+          invitation_status: 'PENDING',
+          invitation_expires_at: expiresAt,
           created_at: new Date().toISOString()
         };
         memoryDb.nominees.push(newNom);
-        return sendJson(201, { message: 'Nominee invited', nominee: newNom });
+
+        console.log(`[Standalone:SNS Email] Dispatched invitation to nominee: ${email}`);
+        console.log(`[Standalone:SNS Email] Invitation Link: ${invitationLink}`);
+        console.log(`[Standalone:SNS Email] Security Token: ${rawInvitationToken}`);
+
+        return sendJson(201, {
+          message: 'Nominee invited successfully. Invitation email dispatched via AWS SNS.',
+          nominee: newNom,
+          invitationToken: rawInvitationToken,
+          invitationLink
+        });
+      }
+
+      if (pathname.startsWith('/api/nominees/') && method === 'DELETE') {
+        const nomId = pathname.split('/')[3];
+        const idx = memoryDb.nominees.findIndex(n => n.id === nomId);
+        if (idx !== -1) memoryDb.nominees.splice(idx, 1);
+        return sendJson(200, { message: 'Nominee deleted' });
+      }
+
+      if (pathname === '/api/nominees/invitations/verify' && method === 'GET') {
+        const token = (urlParts.query?.token || '').trim();
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        const nom = memoryDb.nominees.find(n => n.invitation_token_hash === tokenHash);
+        if (!nom) return sendJson(404, { error: 'Invalid or expired invitation token.' });
+        return sendJson(200, {
+          valid: true,
+          nomineeEmail: nom.email,
+          nomineeName: nom.full_name,
+          relationshipType: nom.relationship_type,
+          ownerName: 'Alexander Vance',
+          expiresAt: nom.invitation_expires_at
+        });
+      }
+
+      if (pathname === '/api/nominees/invitations/accept' && method === 'POST') {
+        const body = await getBody();
+        const token = (body.token || '').trim();
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        const nom = memoryDb.nominees.find(n => n.invitation_token_hash === tokenHash);
+        if (!nom) return sendJson(404, { error: 'Invalid or already accepted invitation token.' });
+
+        nom.invitation_status = 'ACCEPTED';
+        nom.invitation_token_hash = null;
+        nom.verified_at = new Date().toISOString();
+
+        return sendJson(200, {
+          message: 'Invitation accepted successfully.',
+          token: 'standalone-jwt-token',
+          user: { id: nom.id, email: nom.email, name: nom.full_name, role: 'NOMINEE' },
+          nominee: nom
+        });
       }
 
       // --- RELEASE RULES ---

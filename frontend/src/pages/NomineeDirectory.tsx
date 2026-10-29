@@ -17,6 +17,8 @@ export const NomineeDirectory: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
+  const [createdLink, setCreatedLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const fetchNominees = async () => {
     try {
@@ -38,18 +40,32 @@ export const NomineeDirectory: React.FC = () => {
     setSubmitting(true);
     setModalError(null);
     setCreatedToken(null);
+    setCreatedLink(null);
+    setCopied(false);
+
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setModalError('Please enter a valid email address (e.g., name@example.com).');
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const res = await api.addNominee({
-        fullName,
-        email,
-        phone,
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
         relationshipType
       });
+
+      // ONLY set createdToken and success UI when the backend successfully processes the invitation
       setCreatedToken(res.invitationToken);
+      setCreatedLink(res.invitationLink || `${window.location.origin}/?tab=accept-invitation&token=${res.invitationToken}&email=${encodeURIComponent(email.trim().toLowerCase())}`);
       await fetchNominees();
     } catch (err: any) {
-      setModalError(err.message || 'Failed to invite nominee.');
+      setCreatedToken(null);
+      setCreatedLink(null);
+      setModalError(err.message || 'Failed to send nominee invitation.');
     } finally {
       setSubmitting(false);
     }
@@ -262,14 +278,59 @@ export const NomineeDirectory: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              marginBottom: '1rem'
+              marginBottom: '1.25rem',
+              fontWeight: 600
             }}>
-              <CheckCircle size={18} /> Invitation notification dispatched via Amazon SNS.
+              <CheckCircle size={18} /> Invitation sent! Notification dispatched via Amazon SNS.
             </div>
+
+            {createdLink && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Accept Invitation Link
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(createdLink);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--primary)',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: 0
+                    }}
+                  >
+                    <Copy size={13} /> {copied ? 'Copied!' : 'Copy Link'}
+                  </button>
+                </div>
+                <div style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '0.65rem',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.8rem',
+                  wordBreak: 'break-all',
+                  color: 'var(--primary)'
+                }}>
+                  {createdLink}
+                </div>
+              </div>
+            )}
 
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                Invitation Security Token (Demonstration / Test Mode)
+                Invitation Security Token
               </label>
               <div style={{
                 backgroundColor: 'var(--bg-surface)',
@@ -285,6 +346,10 @@ export const NomineeDirectory: React.FC = () => {
               </div>
             </div>
 
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+              AWS SNS has dispatched this notification to the nominee's inbox. If this is the first notification to this email address on this SNS Topic, AWS sends a subscription confirmation link first.
+            </p>
+
             <button
               onClick={() => setIsModalOpen(false)}
               style={{
@@ -293,9 +358,9 @@ export const NomineeDirectory: React.FC = () => {
                 color: '#fff',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
-                padding: '0.65rem',
+                padding: '0.7rem',
                 fontWeight: 600,
-                fontSize: '0.85rem',
+                fontSize: '0.875rem',
                 cursor: 'pointer'
               }}
             >

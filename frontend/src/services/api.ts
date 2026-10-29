@@ -97,10 +97,11 @@ export const api = {
     body: JSON.stringify(data)
   }),
   deleteNominee: (id: string) => request(`/nominees/${id}`, { method: 'DELETE' }),
-  acceptInvitation: (token: string) => request('/nominees/invitations/accept', {
+  verifyInvitation: (token: string) => request(`/nominees/invitations/verify?token=${encodeURIComponent(token)}`),
+  acceptInvitation: (data: string | { token: string; password?: string; name?: string }) => request('/nominees/invitations/accept', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token })
+    body: JSON.stringify(typeof data === 'string' ? { token: data } : data)
   }),
 
   // Release Rules

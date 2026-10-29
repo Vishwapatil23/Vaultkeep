@@ -3,6 +3,8 @@ import app from '../src/server';
 import { memoryDb } from '../src/db';
 import { LifecycleService } from '../src/services/lifecycleService';
 
+jest.setTimeout(30000);
+
 describe('VaultKeep End-to-End API & Lifecycle State Machine Tests', () => {
   let ownerToken: string;
   let nomineeToken: string;

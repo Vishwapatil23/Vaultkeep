@@ -1,5 +1,7 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { memoryDb } from '../db';
@@ -7,6 +9,9 @@ import { NotificationService } from '../services/notificationService';
 import { AuditService } from '../services/auditService';
 import { EnvelopeEncryptionService } from '../crypto/envelopeEncryption';
 import { StorageService } from '../services/storageService';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'vaultkeep_jwt_super_secure_dev_secret_key_2026_x89a';
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export class NomineeController {
   // ================= OWNER OPERATIONS =================
@@ -47,22 +52,36 @@ export class NomineeController {
 
     const { fullName, email, phone, relationshipType = 'Family' } = req.body;
     if (!fullName || !email) {
-      res.status(400).json({ error: 'Nominee full name and email are required.' });
+      res.status(400).json({ error: 'Nominee full name and email are required fields.' });
       return;
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Email format validation
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      res.status(400).json({ error: 'Please enter a valid email address (e.g., name@example.com).' });
+      return;
+    }
+
+    // 2. Prevent self-nomination
+    if (normalizedEmail === req.user.email.toLowerCase()) {
+      res.status(400).json({ error: 'You cannot designate your own email address as a nominee.' });
+      return;
+    }
+
+    // 3. Prevent duplicate nominees for the same owner
     const existing = memoryDb.nominees.find(
       n => n.owner_id === req.user?.id && n.email.toLowerCase() === normalizedEmail
     );
 
     if (existing) {
-      res.status(409).json({ error: 'A nominee with this email is already registered in your vault.' });
+      res.status(409).json({ error: `A nominee with email '${normalizedEmail}' has already been added to your vault.` });
       return;
     }
 
-    // Generate high-entropy invitation token
-    const rawInvitationToken = crypto.randomBytes(24).toString('hex');
+    // Generate high-entropy 256-bit invitation token
+    const rawInvitationToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawInvitationToken).digest('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
 
@@ -73,9 +92,9 @@ export class NomineeController {
       id: nomineeId,
       owner_id: req.user.id,
       nominee_user_id: linkedUser ? linkedUser.id : null,
-      full_name: fullName,
+      full_name: fullName.trim(),
       email: normalizedEmail,
-      phone: phone || null,
+      phone: phone ? phone.trim() : null,
       relationship_type: relationshipType,
       invitation_token_hash: tokenHash,
       invitation_status: linkedUser ? 'ACCEPTED' : 'PENDING',
@@ -87,16 +106,47 @@ export class NomineeController {
 
     memoryDb.nominees.push(newNominee);
 
-    // Send invitation notification via SNS
-    await NotificationService.sendNotification({
+    // Build accept invitation link for the email
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const invitationLink = `${frontendUrl}/?tab=accept-invitation&token=${rawInvitationToken}&email=${encodeURIComponent(normalizedEmail)}`;
+
+    const messageBody = `============================================================\n` +
+      `VAULTKEEP DIGITAL LEGACY NOMINEE INVITATION\n` +
+      `============================================================\n\n` +
+      `Hello ${fullName.trim()},\n\n` +
+      `${req.user.name} (${req.user.email}) has appointed you as a trusted digital legacy nominee on VaultKeep.\n\n` +
+      `In the event of confirmed extended inactivity, access to explicitly selected documents may be granted to you under their security policy.\n\n` +
+      `To accept this nomination and establish your nominee account, please click the secure link below:\n` +
+      `${invitationLink}\n\n` +
+      `Alternatively, you can manually enter this invitation token on VaultKeep:\n` +
+      `Invitation Token: ${rawInvitationToken}\n\n` +
+      `This invitation link expires in 7 days.\n` +
+      `============================================================\n` +
+      `Notice: This is an automated security notice from VaultKeep. No sensitive document plaintext or passwords are ever transmitted via notification.`;
+
+    // Send invitation notification via AWS SNS
+    console.log(`[NomineeController] Initiating invitation email dispatch to ${normalizedEmail} via AWS SNS...`);
+    const notifResult = await NotificationService.sendNotification({
       recipientEmail: normalizedEmail,
       recipientRole: 'NOMINEE',
       notificationType: 'INVITATION_SENT',
       ownerId: req.user.id,
       eventReferenceId: nomineeId,
-      subject: `${req.user.name} has appointed you as a trusted digital legacy nominee on VaultKeep`,
-      messageBody: `You have been designated as a trusted digital legacy nominee by ${req.user.name}. In the event of confirmed extended inactivity, access to explicitly selected documents may be granted to you under their security policy.\nInvitation Code: ${rawInvitationToken}`
+      subject: `${req.user.name} has appointed you as a trusted digital legacy nominee`,
+      messageBody
     });
+
+    if (notifResult.deliveryStatus === 'FAILED') {
+      // Roll back newly created nominee so owner can retry
+      const idx = memoryDb.nominees.findIndex(n => n.id === nomineeId);
+      if (idx !== -1) memoryDb.nominees.splice(idx, 1);
+
+      console.error(`[NomineeController:ERROR] Invitation delivery failed for ${normalizedEmail}: ${notifResult.error}`);
+      res.status(502).json({
+        error: `Failed to dispatch invitation email via AWS SNS: ${notifResult.error || 'Provider rejected request'}`
+      });
+      return;
+    }
 
     await AuditService.recordEvent({
       actorId: req.user.id,
@@ -108,13 +158,14 @@ export class NomineeController {
       outcome: 'SUCCESS',
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
-      metadata: { nomineeEmail: normalizedEmail, relationshipType }
+      metadata: { nomineeEmail: normalizedEmail, relationshipType, providerMessageId: notifResult.providerMessageId }
     });
 
     res.status(201).json({
-      message: 'Nominee invited successfully.',
+      message: 'Nominee invited successfully. Invitation email dispatched via AWS SNS.',
       nominee: newNominee,
-      invitationToken: rawInvitationToken // Returned for quick testing/demo verification
+      invitationToken: rawInvitationToken,
+      invitationLink
     });
   }
 
@@ -156,8 +207,41 @@ export class NomineeController {
 
   // ================= INVITATION WORKFLOW =================
 
+  public static async verifyInvitationToken(req: Request, res: Response): Promise<void> {
+    const token = (req.query.token as string || req.body?.token || '').trim();
+    if (!token) {
+      res.status(400).json({ error: 'Invitation token is required.' });
+      return;
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const nominee = memoryDb.nominees.find(n => n.invitation_token_hash === tokenHash);
+
+    if (!nominee) {
+      res.status(404).json({ error: 'Invalid or already accepted invitation token.' });
+      return;
+    }
+
+    if (new Date() > new Date(nominee.invitation_expires_at)) {
+      res.status(410).json({ error: 'This invitation token has expired.' });
+      return;
+    }
+
+    const owner = memoryDb.users.find(u => u.id === nominee.owner_id);
+
+    res.json({
+      valid: true,
+      nomineeEmail: nominee.email,
+      nomineeName: nominee.full_name,
+      relationshipType: nominee.relationship_type,
+      ownerName: owner?.name || 'Account Owner',
+      ownerEmail: owner?.email,
+      expiresAt: nominee.invitation_expires_at
+    });
+  }
+
   public static async acceptInvitation(req: AuthenticatedRequest, res: Response): Promise<void> {
-    const { token } = req.body;
+    const { token, password, name } = req.body;
     if (!token) {
       res.status(400).json({ error: 'Invitation token is required.' });
       return;
@@ -174,24 +258,89 @@ export class NomineeController {
         req.ip,
         req.headers['user-agent']
       );
-      res.status(404).json({ error: 'Invalid or expired invitation token.' });
+      res.status(404).json({ error: 'Invalid, already accepted, or non-existent invitation token.' });
       return;
     }
 
     if (new Date() > new Date(nominee.invitation_expires_at)) {
-      res.status(410).json({ error: 'Invitation token has expired.' });
+      res.status(410).json({ error: 'This invitation token has expired.' });
       return;
+    }
+
+    let authUser = req.user;
+    let issuedJwt: string | undefined;
+
+    // If nominee user is not currently logged in, check if password was provided to create/login account
+    if (!authUser) {
+      const normalizedEmail = nominee.email.toLowerCase();
+      let existingUser = memoryDb.users.find(u => u.email.toLowerCase() === normalizedEmail);
+
+      if (existingUser) {
+        if (password) {
+          const isMatch = await bcrypt.compare(password, existingUser.password_hash);
+          if (!isMatch) {
+            res.status(401).json({ error: 'Invalid password for this existing nominee account.' });
+            return;
+          }
+        }
+        authUser = {
+          id: existingUser.id,
+          email: existingUser.email,
+          role: existingUser.role,
+          name: existingUser.name
+        };
+      } else if (password) {
+        // Register brand-new Nominee user account
+        if (password.length < 8) {
+          res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+          return;
+        }
+
+        const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
+        const password_hash = await bcrypt.hash(password, saltRounds);
+        const userId = uuidv4();
+        const userName = (name || nominee.full_name || 'Nominee').trim();
+
+        const newUser = {
+          id: userId,
+          name: userName,
+          email: normalizedEmail,
+          password_hash,
+          role: 'NOMINEE' as const,
+          account_status: 'ACTIVE',
+          contact_verified: true,
+          last_check_in_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        memoryDb.users.push(newUser);
+        authUser = {
+          id: newUser.id,
+          email: newUser.email,
+          role: newUser.role,
+          name: newUser.name
+        };
+      }
+
+      if (authUser) {
+        issuedJwt = jwt.sign(
+          { id: authUser.id, email: authUser.email, role: authUser.role, name: authUser.name },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+      }
     }
 
     nominee.invitation_status = 'ACCEPTED';
     nominee.invitation_token_hash = null;
     nominee.verified_at = new Date().toISOString();
-    if (req.user) {
-      nominee.nominee_user_id = req.user.id;
+    if (authUser) {
+      nominee.nominee_user_id = authUser.id;
     }
 
     await AuditService.recordEvent({
-      actorId: req.user?.id || null,
+      actorId: authUser?.id || null,
       actorEmail: nominee.email,
       actorRole: 'NOMINEE',
       action: 'NOMINEE_INVITATION_ACCEPTED',
@@ -204,6 +353,8 @@ export class NomineeController {
 
     res.json({
       message: 'Invitation accepted successfully. You are now verified as a nominee.',
+      token: issuedJwt,
+      user: authUser || null,
       nominee
     });
   }

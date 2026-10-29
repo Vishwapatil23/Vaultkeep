@@ -13,9 +13,19 @@ import { NomineePortal } from './pages/NomineePortal';
 import { AuditLogView } from './pages/AuditLogView';
 import { AdminDashboard } from './pages/AdminDashboard';
 
+import { AcceptInvitationPage } from './pages/AcceptInvitationPage';
+
 export const App: React.FC = () => {
   const { user, loading } = useAuth();
-  const [currentTab, setCurrentTab] = useState<string>('dashboard');
+
+  // Detect invitation token or tab in URL search parameters
+  const [currentTab, setCurrentTab] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('token') || params.get('invite') || params.get('tab') === 'accept-invitation') {
+      return 'accept-invitation';
+    }
+    return 'dashboard';
+  });
 
   if (loading) {
     return (
@@ -38,7 +48,9 @@ export const App: React.FC = () => {
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Navbar currentTab={currentTab} onTabChange={setCurrentTab} />
         <main style={{ flex: 1 }}>
-          {currentTab === 'login' ? (
+          {currentTab === 'accept-invitation' ? (
+            <AcceptInvitationPage onNavigate={setCurrentTab} />
+          ) : currentTab === 'login' ? (
             <LoginPage onNavigate={setCurrentTab} />
           ) : currentTab === 'register' ? (
             <RegisterPage onNavigate={setCurrentTab} />
@@ -55,6 +67,8 @@ export const App: React.FC = () => {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar currentTab={currentTab} onTabChange={setCurrentTab} />
       <main style={{ flex: 1, paddingBottom: '3rem' }}>
+        {currentTab === 'accept-invitation' && <AcceptInvitationPage onNavigate={setCurrentTab} />}
+
         {/* Owner Pages */}
         {user.role === 'OWNER' && (
           <>

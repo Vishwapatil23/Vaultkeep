@@ -21,6 +21,7 @@ router.get('/auth/me', authenticateToken, AuthController.me);
 router.post('/auth/logout', authenticateToken, AuthController.logout);
 
 // ================= INVITATIONS (PUBLIC / NOMINEE) =================
+router.get('/nominees/invitations/verify', NomineeController.verifyInvitationToken);
 router.post('/nominees/invitations/accept', NomineeController.acceptInvitation);
 
 // ================= DOCUMENTS (OWNER) =================
