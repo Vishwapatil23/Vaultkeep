@@ -290,7 +290,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigate }) =>
         <StatBox
           icon={<Clock size={22} color="var(--trust-teal)" />}
           label="Inactivity Policy"
-          value={`${settings?.check_in_interval_days || 30} Days`}
+          value={`${settings?.check_in_interval_days || 90} Days`}
           subtext={`+${settings?.grace_period_days || 7} Day Grace Period`}
           onClick={() => onNavigate('lifecycle')}
         />

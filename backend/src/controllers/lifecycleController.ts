@@ -52,10 +52,10 @@ export class LifecycleController {
     res.json({
       lifecycle: lifecycle || {
         current_state: 'ACTIVE',
-        next_check_in_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        next_check_in_deadline: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
       },
       settings: settings || {
-        check_in_interval_days: 30,
+        check_in_interval_days: 90,
         grace_period_days: 7,
         warning_days: 5
       },

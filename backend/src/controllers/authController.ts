@@ -57,7 +57,7 @@ export class AuthController {
 
     // If owner, set up default settings and initial lifecycle
     if (newUser.role === 'OWNER') {
-      const intervalDays = parseInt(process.env.DEFAULT_CHECK_IN_INTERVAL_DAYS || '30', 10);
+      const intervalDays = parseInt(process.env.DEFAULT_CHECK_IN_INTERVAL_DAYS || '90', 10);
       const graceDays = parseInt(process.env.DEFAULT_GRACE_PERIOD_DAYS || '7', 10);
       const warningDays = parseInt(process.env.DEFAULT_WARNING_DAYS || '5', 10);
 
