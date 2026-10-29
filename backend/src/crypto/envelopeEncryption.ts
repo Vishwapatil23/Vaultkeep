@@ -37,7 +37,10 @@ export class EnvelopeEncryptionService {
     kmsKeyId: string,
     encryptionContext: Record<string, string> = {}
   ): Promise<{ plaintextDek: Buffer; encryptedDekBase64: string }> {
-    if (!USE_MOCK && kmsClient) {
+    if (!USE_MOCK) {
+      if (!kmsClient) {
+        throw new Error('AWS KMS client is not initialized. Ensure AWS credentials and region are configured.');
+      }
       try {
         const command = new GenerateDataKeyCommand({
           KeyId: kmsKeyId,
@@ -46,14 +49,15 @@ export class EnvelopeEncryptionService {
         });
         const response = await kmsClient.send(command);
         if (!response.Plaintext || !response.CiphertextBlob) {
-          throw new Error('KMS failed to return valid plaintext or ciphertext data key');
+          throw new Error('AWS KMS failed to return valid plaintext or ciphertext data key');
         }
         return {
           plaintextDek: Buffer.from(response.Plaintext),
           encryptedDekBase64: Buffer.from(response.CiphertextBlob).toString('base64')
         };
       } catch (err: any) {
-        console.warn(`[KMS] Fallback to simulated KMS for dev: ${err.message}`);
+        console.error(`[AWS KMS Error] GenerateDataKey failed for key "${kmsKeyId}":`, err.message);
+        throw new Error(`AWS KMS Envelope Encryption failed: ${err.message}`);
       }
     }
 
@@ -83,7 +87,10 @@ export class EnvelopeEncryptionService {
   ): Promise<Buffer> {
     const ciphertextBlob = Buffer.from(encryptedDekBase64, 'base64');
 
-    if (!USE_MOCK && kmsClient) {
+    if (!USE_MOCK) {
+      if (!kmsClient) {
+        throw new Error('AWS KMS client is not initialized. Ensure AWS credentials and region are configured.');
+      }
       try {
         const command = new DecryptCommand({
           CiphertextBlob: ciphertextBlob,
@@ -92,11 +99,12 @@ export class EnvelopeEncryptionService {
         });
         const response = await kmsClient.send(command);
         if (!response.Plaintext) {
-          throw new Error('KMS Decrypt returned empty plaintext');
+          throw new Error('AWS KMS Decrypt returned empty plaintext');
         }
         return Buffer.from(response.Plaintext);
       } catch (err: any) {
-        console.warn(`[KMS Decrypt] Fallback to simulated KMS: ${err.message}`);
+        console.error(`[AWS KMS Error] Decrypt failed for key "${kmsKeyId}":`, err.message);
+        throw new Error(`AWS KMS Envelope Decryption failed: ${err.message}`);
       }
     }
 

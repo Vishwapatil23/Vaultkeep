@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { query, memoryDb } from '../db';
+import { query } from '../db';
 import { AuditService } from '../services/auditService';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vaultkeep_jwt_super_secure_dev_secret_key_2026_x89a';
@@ -28,21 +28,9 @@ export const authenticateToken = async (req: AuthenticatedRequest, res: Response
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as AuthenticatedUser;
     
-    // Query live database first
-    let user: any = null;
-    try {
-      const result = await query('SELECT id, name, email, role, account_status FROM users WHERE id = $1', [decoded.id]);
-      if (result.rows && result.rows.length > 0) {
-        user = result.rows[0];
-      }
-    } catch {
-      // Fallback to memory store if query unavailable
-      user = memoryDb.users.find(u => u.id === decoded.id);
-    }
-
-    if (!user) {
-      user = memoryDb.users.find(u => u.id === decoded.id);
-    }
+    // Query live PostgreSQL database
+    const result = await query('SELECT id, name, email, role, account_status FROM users WHERE id = $1', [decoded.id]);
+    const user = result.rows && result.rows.length > 0 ? result.rows[0] : null;
 
     if (!user || user.account_status !== 'ACTIVE') {
       res.status(403).json({ error: 'Account is deactivated or does not exist.' });

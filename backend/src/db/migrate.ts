@@ -18,13 +18,32 @@ async function runMigrations() {
   console.log(`   Target: ${DB_HOST}:${DB_PORT}/${DB_NAME}`);
   console.log('====================================================');
 
+  const caPath = process.env.DB_CA_PATH
+    ? path.resolve(process.env.DB_CA_PATH)
+    : fs.existsSync(path.resolve(__dirname, 'certs/rds-ca-bundle.pem'))
+      ? path.resolve(__dirname, 'certs/rds-ca-bundle.pem')
+      : path.resolve(__dirname, '../../certs/rds-ca-bundle.pem');
+
+  let sslConfig: any = false;
+  if (DB_SSL) {
+    if (fs.existsSync(caPath)) {
+      sslConfig = {
+        rejectUnauthorized: true,
+        ca: fs.readFileSync(caPath).toString(),
+      };
+      console.log(`[Migration] Using verified Amazon RDS CA certificate bundle from: ${caPath}`);
+    } else {
+      sslConfig = { rejectUnauthorized: true };
+    }
+  }
+
   const pool = new Pool({
     host: DB_HOST,
     port: DB_PORT,
     database: DB_NAME,
     user: DB_USER,
     password: DB_PASSWORD,
-    ssl: DB_SSL ? { rejectUnauthorized: false } : false,
+    ssl: sslConfig,
     connectionTimeoutMillis: 10000,
   });
 

@@ -22,7 +22,10 @@ export class StorageService {
    * Persists an encrypted document blob (ciphertext only).
    */
   public static async putEncryptedObject(key: string, ciphertext: Buffer, contentType = 'application/octet-stream'): Promise<string> {
-    if (!USE_MOCK && s3Client) {
+    if (!USE_MOCK) {
+      if (!s3Client) {
+        throw new Error('AWS S3 client is not initialized. Ensure AWS credentials and region are configured.');
+      }
       try {
         const command = new PutObjectCommand({
           Bucket: S3_BUCKET,
@@ -35,11 +38,12 @@ export class StorageService {
         console.log(`[S3 Upload] Successfully persisted encrypted object to s3://${S3_BUCKET}/${key}`);
         return `s3://${S3_BUCKET}/${key}`;
       } catch (err: any) {
-        console.warn(`[S3 Upload] Cloud upload failed, writing to local mock: ${err.message}`);
+        console.error(`[AWS S3 Upload Error] Failed to persist object to s3://${S3_BUCKET}/${key}:`, err.message);
+        throw new Error(`AWS S3 Upload failed: ${err.message}`);
       }
     }
 
-    // Local Mock S3
+    // Local Mock S3 (Only active when AWS_MOCK_SERVICES=true)
     const filePath = path.join(LOCAL_S3_DIR, key.replace(/\//g, '_'));
     fs.writeFileSync(filePath, ciphertext);
     return `local-s3://${filePath}`;
@@ -49,7 +53,10 @@ export class StorageService {
    * Retrieves an encrypted document blob.
    */
   public static async getEncryptedObject(key: string): Promise<Buffer> {
-    if (!USE_MOCK && s3Client) {
+    if (!USE_MOCK) {
+      if (!s3Client) {
+        throw new Error('AWS S3 client is not initialized. Ensure AWS credentials and region are configured.');
+      }
       try {
         const command = new GetObjectCommand({
           Bucket: S3_BUCKET,
@@ -66,8 +73,10 @@ export class StorageService {
           };
           return await streamToBuffer(response.Body);
         }
+        throw new Error(`AWS S3 returned empty body for key "${key}"`);
       } catch (err: any) {
-        console.warn(`[S3 GetObject] Cloud retrieval failed, falling back to local mock: ${err.message}`);
+        console.error(`[AWS S3 Retrieval Error] Failed to retrieve object from s3://${S3_BUCKET}/${key}:`, err.message);
+        throw new Error(`AWS S3 Retrieval failed: ${err.message}`);
       }
     }
 
@@ -82,15 +91,20 @@ export class StorageService {
    * Deletes an encrypted document object.
    */
   public static async deleteEncryptedObject(key: string): Promise<void> {
-    if (!USE_MOCK && s3Client) {
+    if (!USE_MOCK) {
+      if (!s3Client) {
+        throw new Error('AWS S3 client is not initialized. Ensure AWS credentials and region are configured.');
+      }
       try {
         await s3Client.send(new DeleteObjectCommand({
           Bucket: S3_BUCKET,
           Key: key
         }));
+        console.log(`[S3 Delete] Successfully removed encrypted object s3://${S3_BUCKET}/${key}`);
         return;
       } catch (err: any) {
-        console.warn(`[S3 DeleteObject] Error: ${err.message}`);
+        console.error(`[AWS S3 Delete Error] Failed to delete object s3://${S3_BUCKET}/${key}:`, err.message);
+        throw new Error(`AWS S3 Delete failed: ${err.message}`);
       }
     }
 

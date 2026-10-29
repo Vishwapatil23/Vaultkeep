@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { query, memoryDb, saveMemoryDb } from '../db';
+import { query } from '../db';
 import { EnvelopeEncryptionService } from '../crypto/envelopeEncryption';
 import { StorageService } from '../services/storageService';
 import { AuditService } from '../services/auditService';
@@ -46,26 +46,6 @@ export class DocumentController {
       const now = new Date();
 
       // 3. Persist metadata and KMS-wrapped DEK in Amazon RDS PostgreSQL
-      const newDocument = {
-        id: documentId,
-        owner_id: req.user.id,
-        original_name: file.originalname,
-        storage_key: storageKey,
-        mime_type: file.mimetype,
-        file_size_bytes: file.size,
-        category: docCategory,
-        upload_status: 'UPLOADED',
-        encryption_algorithm: encryptedPayload.algorithm,
-        encryption_version: encryptedPayload.version,
-        kms_key_id: KMS_KEY_ID,
-        encrypted_dek_base64: encryptedPayload.encryptedDekBase64,
-        dek_iv_base64: encryptedPayload.ivBase64,
-        auth_tag_base64: encryptedPayload.authTagBase64,
-        checksum_sha256: encryptedPayload.checksumSha256,
-        created_at: now.toISOString(),
-        updated_at: now.toISOString()
-      };
-
       try {
         await query(
           `INSERT INTO documents (
@@ -95,11 +75,13 @@ export class DocumentController {
         );
       } catch (err: any) {
         console.error('[DocumentController:Upload:DBError]', err.message);
+        // Rollback S3 upload if RDS persistence fails to prevent orphaned blobs
+        try {
+          await StorageService.deleteEncryptedObject(storageKey);
+        } catch {}
+        res.status(500).json({ error: `Database error saving document metadata: ${err.message}` });
+        return;
       }
-
-      // Memory mirror
-      memoryDb.documents.unshift(newDocument);
-      saveMemoryDb();
 
       // 4. Audit Log
       await AuditService.recordEvent({
@@ -124,17 +106,18 @@ export class DocumentController {
       res.status(201).json({
         message: 'Document encrypted and stored securely in vault and Amazon RDS.',
         document: {
-          id: newDocument.id,
-          originalName: newDocument.original_name,
-          category: newDocument.category,
-          fileSizeBytes: newDocument.file_size_bytes,
-          mimeType: newDocument.mime_type,
-          encryptionAlgorithm: newDocument.encryption_algorithm,
-          checksumSha256: newDocument.checksum_sha256,
-          createdAt: newDocument.created_at
+          id: documentId,
+          originalName: file.originalname,
+          category: docCategory,
+          fileSizeBytes: file.size,
+          mimeType: file.mimetype,
+          encryptionAlgorithm: encryptedPayload.algorithm,
+          checksumSha256: encryptedPayload.checksumSha256,
+          createdAt: now.toISOString()
         }
       });
     } catch (err: any) {
+      console.error('[DocumentController:Upload:Error]', err.message);
       await AuditService.recordSecurityEvent(
         'DOCUMENT_UPLOAD_FAILED',
         req.user.email,
@@ -163,47 +146,25 @@ export class DocumentController {
         [req.user.id]
       );
 
-      if (result.rows && result.rows.length > 0) {
-        const responseList = result.rows.map((d: any) => ({
-          id: d.id,
-          originalName: d.original_name,
-          category: d.category,
-          fileSizeBytes: parseInt(d.file_size_bytes || '0', 10),
-          mimeType: d.mime_type,
-          encryptionAlgorithm: d.encryption_algorithm,
-          encryptionVersion: d.encryption_version,
-          checksumSha256: d.checksum_sha256,
-          uploadStatus: d.upload_status,
-          assignedNomineesCount: d.assigned_nominees_count || 0,
-          createdAt: d.created_at
-        }));
-        res.json({ documents: responseList });
-        return;
-      }
-    } catch (err: any) {
-      console.warn('[DocumentController:Get:Warning]', err.message);
-    }
-
-    // Fallback to memory
-    const docs = memoryDb.documents.filter(d => d.owner_id === req.user?.id && d.upload_status !== 'DELETED');
-    const responseList = docs.map(d => {
-      const rules = memoryDb.document_release_rules.filter(r => r.document_id === d.id && r.rule_status === 'ACTIVE');
-      return {
+      const responseList = result.rows.map((d: any) => ({
         id: d.id,
         originalName: d.original_name,
         category: d.category,
-        fileSizeBytes: d.file_size_bytes,
+        fileSizeBytes: parseInt(d.file_size_bytes || '0', 10),
         mimeType: d.mime_type,
         encryptionAlgorithm: d.encryption_algorithm,
         encryptionVersion: d.encryption_version,
         checksumSha256: d.checksum_sha256,
         uploadStatus: d.upload_status,
-        assignedNomineesCount: rules.length,
+        assignedNomineesCount: d.assigned_nominees_count || 0,
         createdAt: d.created_at
-      };
-    });
+      }));
 
-    res.json({ documents: responseList });
+      res.json({ documents: responseList });
+    } catch (err: any) {
+      console.error('[DocumentController:Get:Error]', err.message);
+      res.status(500).json({ error: `Database error retrieving documents: ${err.message}` });
+    }
   }
 
   public static async downloadDocument(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -213,30 +174,20 @@ export class DocumentController {
     }
 
     const { id } = req.params;
-    let doc: any = null;
 
     try {
       const resDoc = await query(
         `SELECT * FROM documents WHERE id = $1 AND owner_id = $2 AND upload_status != 'DELETED'`,
         [id, req.user.id]
       );
-      if (resDoc.rows && resDoc.rows.length > 0) {
-        doc = resDoc.rows[0];
+
+      if (!resDoc.rows || resDoc.rows.length === 0) {
+        res.status(404).json({ error: 'Document not found or unauthorized.' });
+        return;
       }
-    } catch {
-      doc = memoryDb.documents.find(d => d.id === id && d.owner_id === req.user?.id && d.upload_status !== 'DELETED');
-    }
 
-    if (!doc) {
-      doc = memoryDb.documents.find(d => d.id === id && d.owner_id === req.user?.id && d.upload_status !== 'DELETED');
-    }
+      const doc = resDoc.rows[0];
 
-    if (!doc) {
-      res.status(404).json({ error: 'Document not found or unauthorized.' });
-      return;
-    }
-
-    try {
       // 1. Fetch ciphertext from S3
       const ciphertext = await StorageService.getEncryptedObject(doc.storage_key);
 
@@ -276,6 +227,7 @@ export class DocumentController {
       res.setHeader('Content-Length', plaintextBuffer.length);
       res.send(plaintextBuffer);
     } catch (err: any) {
+      console.error('[DocumentController:Download:Error]', err.message);
       await AuditService.recordSecurityEvent(
         'DOCUMENT_DECRYPTION_FAILED',
         req.user.email,
@@ -283,7 +235,7 @@ export class DocumentController {
         req.ip,
         req.headers['user-agent']
       );
-      res.status(500).json({ error: `Decryption failed: ${err.message}` });
+      res.status(500).json({ error: `Decryption or document download failed: ${err.message}` });
     }
   }
 
@@ -294,53 +246,43 @@ export class DocumentController {
     }
 
     const { id } = req.params;
-    let doc: any = null;
 
     try {
       const resDoc = await query(`SELECT * FROM documents WHERE id = $1 AND owner_id = $2`, [id, req.user.id]);
-      if (resDoc.rows && resDoc.rows.length > 0) doc = resDoc.rows[0];
-    } catch {
-      doc = memoryDb.documents.find(d => d.id === id && d.owner_id === req.user?.id);
-    }
+      if (!resDoc.rows || resDoc.rows.length === 0) {
+        res.status(404).json({ error: 'Document not found.' });
+        return;
+      }
+      const doc = resDoc.rows[0];
 
-    if (!doc) doc = memoryDb.documents.find(d => d.id === id && d.owner_id === req.user?.id);
+      // Delete from S3 storage
+      try {
+        await StorageService.deleteEncryptedObject(doc.storage_key);
+      } catch (err: any) {
+        console.warn('[DocumentController:DeleteS3:Warning]', err.message);
+      }
 
-    if (!doc) {
-      res.status(404).json({ error: 'Document not found.' });
-      return;
-    }
-
-    // Delete from S3 storage
-    try {
-      await StorageService.deleteEncryptedObject(doc.storage_key);
-    } catch (err: any) {
-      console.warn('[DocumentController:DeleteS3:Warning]', err.message);
-    }
-
-    // Update in RDS
-    try {
+      // Update in RDS
       await query(`UPDATE documents SET upload_status = 'DELETED', updated_at = NOW() WHERE id = $1 AND owner_id = $2`, [id, req.user.id]);
       await query(`DELETE FROM document_release_rules WHERE document_id = $1`, [id]);
+      await query(`DELETE FROM release_grants WHERE document_id = $1`, [id]);
+
+      await AuditService.recordEvent({
+        actorId: req.user.id,
+        actorEmail: req.user.email,
+        actorRole: req.user.role,
+        action: 'DOCUMENT_DELETED',
+        resourceType: 'DOCUMENT',
+        resourceId: id,
+        outcome: 'SUCCESS',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
+      res.json({ message: 'Document and associated release policies deleted safely.' });
     } catch (err: any) {
-      console.warn('[DocumentController:DeleteDB:Warning]', err.message);
+      console.error('[DocumentController:Delete:Error]', err.message);
+      res.status(500).json({ error: `Database error deleting document: ${err.message}` });
     }
-
-    doc.upload_status = 'DELETED';
-    memoryDb.document_release_rules = memoryDb.document_release_rules.filter(r => r.document_id !== id);
-    saveMemoryDb();
-
-    await AuditService.recordEvent({
-      actorId: req.user.id,
-      actorEmail: req.user.email,
-      actorRole: req.user.role,
-      action: 'DOCUMENT_DELETED',
-      resourceType: 'DOCUMENT',
-      resourceId: id,
-      outcome: 'SUCCESS',
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
-    });
-
-    res.json({ message: 'Document and associated release policies deleted safely.' });
   }
 }

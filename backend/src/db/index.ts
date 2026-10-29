@@ -1,5 +1,7 @@
 import { Pool, QueryResult } from 'pg';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
@@ -13,6 +15,25 @@ const DB_SSL = process.env.DB_SSL ? process.env.DB_SSL === 'true' : true;
 
 const isPgConfigured = process.env.USE_IN_MEMORY_DB !== 'true';
 
+const caPath = process.env.DB_CA_PATH
+  ? path.resolve(process.env.DB_CA_PATH)
+  : fs.existsSync(path.resolve(__dirname, 'certs/rds-ca-bundle.pem'))
+    ? path.resolve(__dirname, 'certs/rds-ca-bundle.pem')
+    : path.resolve(__dirname, '../../certs/rds-ca-bundle.pem');
+
+let sslConfig: any = false;
+if (DB_SSL) {
+  if (fs.existsSync(caPath)) {
+    sslConfig = {
+      rejectUnauthorized: true,
+      ca: fs.readFileSync(caPath).toString(),
+    };
+    console.log(`[Amazon RDS PostgreSQL Pool] TLS enabled with verified AWS RDS CA bundle: ${caPath}`);
+  } else {
+    sslConfig = { rejectUnauthorized: true };
+  }
+}
+
 let pool: Pool | null = null;
 
 if (isPgConfigured) {
@@ -22,7 +43,7 @@ if (isPgConfigured) {
     database: DB_NAME,
     user: DB_USER,
     password: DB_PASSWORD,
-    ssl: DB_SSL ? { rejectUnauthorized: false } : false,
+    ssl: sslConfig,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
@@ -157,8 +178,6 @@ const memoryStore: MemoryStore = {
   security_events: []
 };
 
-import fs from 'fs';
-import path from 'path';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const DB_FILE_DIR = path.resolve(__dirname, '../../data');
