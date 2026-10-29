@@ -1,6 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'VaultKeep Automation & Observability: EventBridge Rule, Lambda Inactivity Engine, SNS Topics, and CloudWatch Alarms'
 
+Parameters:
+  LambdaCodeBucket:
+    Type: String
+    Description: Name of the S3 bucket containing the Lambda deployment package (leave blank to use the VaultKeep S3 bucket)
+    Default: ''
+  LambdaCodeKey:
+    Type: String
+    Description: S3 object key of the inactivity worker Lambda deployment zip package
+    Default: 'lambda/inactivity_worker.zip'
+
+Conditions:
+  UseCustomBucket: !Not [!Equals [!Ref LambdaCodeBucket, '']]
+
 Resources:
   # 1. Amazon SNS Topics
   InactivityAlertsTopic:
@@ -68,7 +81,7 @@ Resources:
     Properties:
       FunctionName: vaultkeep-inactivity-monitor
       Runtime: nodejs20.x
-      Handler: index.handler
+      Handler: inactivity_handler.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
       MemorySize: 256
@@ -80,13 +93,16 @@ Resources:
             Fn::ImportValue: VaultKeep-DBEndpoint
           DB_NAME: vaultkeep_db
           DB_USER: vaultkeep_admin
-          DB_PASSWORD_PARAM: /vaultkeep/prod/DB_PASSWORD
+          DB_PASSWORD_PARAM: /vaultkeep/prod/db_password
+          DB_SSL: 'true'
+          DB_CA_PATH: 'rds-ca-bundle.pem'
       Code:
-        ZipFile: |
-          exports.handler = async (event) => {
-            console.log("[VaultKeep EventBridge Inactivity Check]", new Date().toISOString());
-            return { statusCode: 200, body: "Inactivity evaluation complete" };
-          };
+        S3Bucket:
+          !If
+            - UseCustomBucket
+            - !Ref LambdaCodeBucket
+            - Fn::ImportValue: VaultKeep-S3BucketName
+        S3Key: !Ref LambdaCodeKey
       Tags:
         - Key: Project
           Value: VaultKeep

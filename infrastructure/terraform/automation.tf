@@ -95,6 +95,8 @@ resource "aws_lambda_function" "inactivity_monitor" {
       DB_NAME                      = "vaultkeep_db"
       DB_USER                      = var.db_username
       DB_PASSWORD_PARAM            = aws_ssm_parameter.db_password.name
+      DB_SSL                       = "true"
+      DB_CA_PATH                   = "rds-ca-bundle.pem"
       SNS_INACTIVITY_TOPIC_ARN     = aws_sns_topic.inactivity_alerts.arn
       SNS_ACCESS_GRANTED_TOPIC_ARN = aws_sns_topic.access_granted.arn
     }

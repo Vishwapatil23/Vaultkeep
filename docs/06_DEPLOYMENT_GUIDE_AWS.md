@@ -49,7 +49,7 @@ export JWT_SECRET_VAL=$(openssl rand -hex 32)
 
 # 2. Securely store secrets in SSM Parameter Store (encrypted with AWS KMS)
 aws ssm put-parameter \
-  --name "/vaultkeep/prod/DB_PASSWORD" \
+  --name "/vaultkeep/prod/db_password" \
   --type "SecureString" \
   --value "$DB_PASSWORD" \
   --description "VaultKeep RDS Master Database Password" \
@@ -103,13 +103,28 @@ aws cloudformation create-stack \
   --region us-east-1
 ```
 
-### Step 6: Deploy Serverless Automation & CloudWatch Alarms
-Provisions Amazon SNS topics, EventBridge rule (`rate(1 day)`), supporting AWS Lambda inactivity worker, and CloudWatch Failed Decryption Alarm.
+### Step 6: Package and Deploy Serverless Automation & CloudWatch Alarms
+Packages the production Lambda handler (`infrastructure/lambda/inactivity_handler.js`) bundled with the RDS CA certificate bundle (`rds-ca-bundle.pem`) and production dependencies (`pg`), stages the artifact in the S3 bucket, and deploys the CloudFormation automation stack:
 
 ```bash
+# 1. Package the Lambda inactivity handler with RDS CA bundle and dependencies
+node infrastructure/lambda/package_worker.js
+
+# 2. Retrieve the VaultKeep S3 bucket name created in Step 2
+S3_BUCKET=$(aws cloudformation describe-stacks \
+  --stack-name vaultkeep-kms-s3-stack \
+  --query "Stacks[0].Outputs[?OutputKey=='S3BucketName'].OutputValue" \
+  --output text \
+  --region us-east-1)
+
+# 3. Stage the packaged zip in the S3 bucket
+aws s3 cp infrastructure/lambda/inactivity_worker.zip "s3://${S3_BUCKET}/lambda/inactivity_worker.zip" --region us-east-1
+
+# 4. Deploy the CloudFormation automation stack
 aws cloudformation create-stack \
   --stack-name vaultkeep-automation-stack \
   --template-body file://infrastructure/cloudformation/05_serverless_automation.yaml \
+  --parameters ParameterKey=LambdaCodeBucket,ParameterValue="${S3_BUCKET}" ParameterKey=LambdaCodeKey,ParameterValue="lambda/inactivity_worker.zip" \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```

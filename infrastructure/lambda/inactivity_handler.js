@@ -7,6 +7,8 @@
 const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
 const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
 
 const region = process.env.AWS_REGION || 'us-east-1';
 const snsClient = new SNSClient({ region });
@@ -17,6 +19,10 @@ const ACCESS_GRANTED_TOPIC_ARN = process.env.SNS_ACCESS_GRANTED_TOPIC_ARN;
 let pool = null;
 let cachedPassword = null;
 
+/**
+ * Retrieve database password from environment variable or securely from AWS Systems Manager Parameter Store.
+ * Aligned path: /vaultkeep/prod/db_password (with fallback for /vaultkeep/prod/DB_PASSWORD).
+ */
 async function getDbPassword() {
   if (process.env.DB_PASSWORD) {
     return process.env.DB_PASSWORD;
@@ -27,14 +33,81 @@ async function getDbPassword() {
   const paramName = process.env.DB_PASSWORD_PARAM || process.env.SSM_DB_PASSWORD_PARAM || '/vaultkeep/prod/db_password';
   if (paramName) {
     console.log(`[VaultKeep Lambda] Fetching database password securely from SSM: ${paramName}`);
-    const res = await ssmClient.send(new GetParameterCommand({
-      Name: paramName,
-      WithDecryption: true
-    }));
-    cachedPassword = res.Parameter.Value;
-    return cachedPassword;
+    try {
+      const res = await ssmClient.send(new GetParameterCommand({
+        Name: paramName,
+        WithDecryption: true
+      }));
+      cachedPassword = res.Parameter.Value;
+      return cachedPassword;
+    } catch (err) {
+      // Graceful fallback to uppercase if parameter was created with legacy uppercase path
+      if (paramName === '/vaultkeep/prod/db_password') {
+        try {
+          console.log('[VaultKeep Lambda] Falling back to uppercase SSM parameter /vaultkeep/prod/DB_PASSWORD...');
+          const fallbackRes = await ssmClient.send(new GetParameterCommand({
+            Name: '/vaultkeep/prod/DB_PASSWORD',
+            WithDecryption: true
+          }));
+          cachedPassword = fallbackRes.Parameter.Value;
+          return cachedPassword;
+        } catch (_) {
+          // Keep original error if fallback also fails
+        }
+      }
+      throw err;
+    }
   }
   throw new Error('[VaultKeep Lambda Error] Neither DB_PASSWORD nor DB_PASSWORD_PARAM is configured.');
+}
+
+/**
+ * Configure TLS verification for RDS PostgreSQL using the official RDS CA bundle.
+ * Enforces strict TLS certificate verification (rejectUnauthorized: true).
+ */
+function getSslConfig() {
+  const isSslEnabled = process.env.DB_SSL ? process.env.DB_SSL === 'true' : true;
+  if (!isSslEnabled) {
+    return false;
+  }
+
+  const configuredCaPath = process.env.DB_CA_PATH || 'rds-ca-bundle.pem';
+  let caPath = path.isAbsolute(configuredCaPath)
+    ? configuredCaPath
+    : path.resolve(__dirname, configuredCaPath);
+
+  if (!fs.existsSync(caPath)) {
+    const candidates = [
+      path.resolve(process.cwd(), configuredCaPath),
+      path.resolve(__dirname, 'rds-ca-bundle.pem'),
+      path.resolve(__dirname, 'certs/rds-ca-bundle.pem'),
+      path.resolve(process.cwd(), 'rds-ca-bundle.pem'),
+      path.resolve(process.cwd(), 'certs/rds-ca-bundle.pem'),
+      path.resolve(__dirname, '../certs/rds-ca-bundle.pem'),
+      path.resolve(__dirname, '../../certs/rds-ca-bundle.pem'),
+      path.resolve(__dirname, '../../backend/certs/rds-ca-bundle.pem'),
+      path.resolve(__dirname, '../../../backend/certs/rds-ca-bundle.pem')
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        caPath = candidate;
+        break;
+      }
+    }
+  }
+
+  if (fs.existsSync(caPath)) {
+    console.log(`[VaultKeep Lambda] Verifying RDS TLS with CA bundle: ${caPath}`);
+    return {
+      rejectUnauthorized: true,
+      ca: fs.readFileSync(caPath).toString()
+    };
+  }
+
+  console.warn('[VaultKeep Lambda Warning] RDS CA bundle file not found; enforcing TLS verification with rejectUnauthorized: true');
+  return {
+    rejectUnauthorized: true
+  };
 }
 
 async function getPool() {
@@ -46,7 +119,7 @@ async function getPool() {
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
       password: password,
-      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+      ssl: getSslConfig(),
       max: 2,
       connectionTimeoutMillis: 5000
     });
