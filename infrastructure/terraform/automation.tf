@@ -37,6 +37,27 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+resource "aws_iam_role_policy" "lambda_ssm_access" {
+  name = "VaultKeep-Lambda-SSM-Access"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter", "ssm:GetParameters"]
+        Resource = aws_ssm_parameter.db_password.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = aws_kms_key.vaultkeep_key.arn
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_sns_publish" {
   name = "VaultKeep-Lambda-SNS-Publish"
   role = aws_iam_role.lambda_role.id
@@ -66,14 +87,14 @@ resource "aws_lambda_function" "inactivity_monitor" {
   memory_size   = 256
 
   filename         = "${path.module}/../lambda/inactivity_worker.zip"
-  source_code_hash = filebase64sha256("${path.module}/../lambda/inactivity_handler.js")
+  source_code_hash = filebase64sha256("${path.module}/../lambda/inactivity_worker.zip")
 
   environment {
     variables = {
       DB_HOST                      = aws_db_instance.postgresql.address
       DB_NAME                      = "vaultkeep_db"
       DB_USER                      = var.db_username
-      DB_PASSWORD                  = var.db_password
+      DB_PASSWORD_PARAM            = aws_ssm_parameter.db_password.name
       SNS_INACTIVITY_TOPIC_ARN     = aws_sns_topic.inactivity_alerts.arn
       SNS_ACCESS_GRANTED_TOPIC_ARN = aws_sns_topic.access_granted.arn
     }

@@ -5,23 +5,47 @@
  */
 
 const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
+const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
 const { Pool } = require('pg');
 
 const region = process.env.AWS_REGION || 'us-east-1';
 const snsClient = new SNSClient({ region });
+const ssmClient = new SSMClient({ region });
 const INACTIVITY_TOPIC_ARN = process.env.SNS_INACTIVITY_TOPIC_ARN;
 const ACCESS_GRANTED_TOPIC_ARN = process.env.SNS_ACCESS_GRANTED_TOPIC_ARN;
 
 let pool = null;
+let cachedPassword = null;
 
-function getPool() {
+async function getDbPassword() {
+  if (process.env.DB_PASSWORD) {
+    return process.env.DB_PASSWORD;
+  }
+  if (cachedPassword) {
+    return cachedPassword;
+  }
+  const paramName = process.env.DB_PASSWORD_PARAM || process.env.SSM_DB_PASSWORD_PARAM || '/vaultkeep/prod/db_password';
+  if (paramName) {
+    console.log(`[VaultKeep Lambda] Fetching database password securely from SSM: ${paramName}`);
+    const res = await ssmClient.send(new GetParameterCommand({
+      Name: paramName,
+      WithDecryption: true
+    }));
+    cachedPassword = res.Parameter.Value;
+    return cachedPassword;
+  }
+  throw new Error('[VaultKeep Lambda Error] Neither DB_PASSWORD nor DB_PASSWORD_PARAM is configured.');
+}
+
+async function getPool() {
   if (!pool) {
+    const password = await getDbPassword();
     pool = new Pool({
       host: process.env.DB_HOST,
       port: parseInt(process.env.DB_PORT || '5432', 10),
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
+      password: password,
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
       max: 2,
       connectionTimeoutMillis: 5000
@@ -34,7 +58,7 @@ exports.handler = async (event, context) => {
   console.log('[VaultKeep Automation] EventBridge execution started at:', new Date().toISOString());
   console.log('[Event Details]', JSON.stringify(event));
 
-  const db = getPool();
+  const db = await getPool();
   const client = await db.connect();
   const now = new Date();
 

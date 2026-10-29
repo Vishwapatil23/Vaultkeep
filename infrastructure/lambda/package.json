@@ -1,0 +1,17 @@
+{
+  "name": "vaultkeep-lambda-inactivity-worker",
+  "version": "1.0.0",
+  "description": "VaultKeep Inactivity Monitoring & Document Release Automation Worker",
+  "main": "inactivity_handler.js",
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-sns": "^3.750.0",
+    "@aws-sdk/client-ssm": "^3.750.0"
+  },
+  "scripts": {
+    "package": "node package_worker.js"
+  }
+}
+

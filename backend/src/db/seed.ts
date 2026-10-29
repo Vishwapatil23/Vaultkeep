@@ -24,6 +24,10 @@ if (missingVars.length > 0) {
 }
 
 async function runSeed() {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_SEED !== 'true') {
+    console.error('[Seed Error] Demo seed script cannot be run in production (NODE_ENV=production).');
+    process.exit(1);
+  }
   console.log('====================================================');
   console.log('   VaultKeep Database Seed Engine');
   console.log(`   Target: ${DB_HOST}:${DB_PORT}/${DB_NAME}`);

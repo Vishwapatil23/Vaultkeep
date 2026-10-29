@@ -8,7 +8,7 @@ Parameters:
   DBMasterPassword:
     Type: String
     NoEcho: true
-    Default: 'VaultKeepSecureDevPassword2026!'
+    Description: Master password for Amazon RDS PostgreSQL instance (must be passed securely during deployment or via SSM/Secrets Manager)
   DBInstanceClass:
     Type: String
     Default: 'db.t4g.micro'

@@ -30,3 +30,16 @@ resource "aws_db_instance" "postgresql" {
     Name = "VaultKeep-PostgreSQL-Instance"
   }
 }
+
+resource "aws_ssm_parameter" "db_password" {
+  name        = "/vaultkeep/${var.environment}/db_password"
+  description = "Amazon RDS master password for VaultKeep database"
+  type        = "SecureString"
+  value       = var.db_password
+  key_id      = aws_kms_key.vaultkeep_key.arn
+
+  tags = {
+    Environment = var.environment
+    Project     = "VaultKeep"
+  }
+}

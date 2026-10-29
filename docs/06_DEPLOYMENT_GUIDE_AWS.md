@@ -38,24 +38,58 @@ aws cloudformation create-stack \
   --region us-east-1
 ```
 
-### Step 3: Deploy Amazon RDS PostgreSQL Stack
-Provisions the private DB subnet group and Amazon RDS PostgreSQL instance (`db.t4g.micro`, 20GB gp3, non-public).
+### Step 3: Populate Secure Secrets in Parameter Store & Deploy Amazon RDS Stack
+
+Before deploying, generate high-entropy secrets and store them directly in AWS Systems Manager Parameter Store. Never use static or hardcoded credentials in deployment scripts.
+
+```bash
+# 1. Generate strong, unique secrets for the deployment
+export DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9!$%*_-' | head -c 24)
+export JWT_SECRET_VAL=$(openssl rand -hex 32)
+
+# 2. Securely store secrets in SSM Parameter Store (encrypted with AWS KMS)
+aws ssm put-parameter \
+  --name "/vaultkeep/prod/DB_PASSWORD" \
+  --type "SecureString" \
+  --value "$DB_PASSWORD" \
+  --description "VaultKeep RDS Master Database Password" \
+  --overwrite
+
+aws ssm put-parameter \
+  --name "/vaultkeep/prod/JWT_SECRET" \
+  --type "SecureString" \
+  --value "$JWT_SECRET_VAL" \
+  --description "VaultKeep JWT Signing Key" \
+  --overwrite
+```
+
+Now deploy the RDS PostgreSQL stack, supplying the generated password parameter securely:
 
 ```bash
 aws cloudformation create-stack \
   --stack-name vaultkeep-rds-stack \
   --template-body file://infrastructure/cloudformation/03_rds_postgresql.yaml \
-  --parameters ParameterKey=DBMasterPassword,ParameterValue="VaultKeepProductionPassword2026!" \
+  --parameters ParameterKey=DBMasterPassword,ParameterValue="$DB_PASSWORD" \
   --region us-east-1
 ```
+*(When deploying via Terraform, pass the variable dynamically: `export TF_VAR_db_password="$DB_PASSWORD"` or `terraform apply -var="db_password=$DB_PASSWORD"`).*
 
-### Step 4: Populate AWS Systems Manager Parameter Store
-Store database and configuration secrets securely in SSM:
+### Step 4: Record RDS Endpoint in Parameter Store
+Once the RDS stack is created, retrieve its endpoint address and record it in SSM:
 
 ```bash
-aws ssm put-parameter --name "/vaultkeep/prod/DB_HOST" --type "String" --value "<RDS_ENDPOINT>" --overwrite
-aws ssm put-parameter --name "/vaultkeep/prod/DB_PASSWORD" --type "SecureString" --value "VaultKeepProductionPassword2026!" --overwrite
-aws ssm put-parameter --name "/vaultkeep/prod/JWT_SECRET" --type "SecureString" --value "prod_super_secure_vaultkeep_key_2026" --overwrite
+RDS_ENDPOINT=$(aws rds describe-db-instances \
+  --db-instance-identifier vaultkeep-postgresql-db \
+  --query "DBInstances[0].Endpoint.Address" \
+  --output text \
+  --region us-east-1)
+
+aws ssm put-parameter \
+  --name "/vaultkeep/prod/DB_HOST" \
+  --type "String" \
+  --value "$RDS_ENDPOINT" \
+  --description "VaultKeep RDS Endpoint Address" \
+  --overwrite
 ```
 
 ### Step 5: Deploy EC2, ALB, and Auto Scaling Group Stack

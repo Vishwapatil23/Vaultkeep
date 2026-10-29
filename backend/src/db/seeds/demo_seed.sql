@@ -3,11 +3,12 @@
 
 -- 1. Synthetic Users (Passwords: 'Password123!')
 -- bcrypt hash for 'Password123!': $2a$10$nybYQdcGqdxTZrmsHyfhOOy9rSUYd1f0WvrFR2L6j.LNoTFjPmmNG
+-- Synthetic Demonstration Users (Owner and Nominee test identities only)
+-- Admin accounts are NEVER seeded with shared passwords. Provision admins separately via administrative tools.
 INSERT INTO users (id, name, email, password_hash, role, account_status, contact_verified, last_check_in_at)
 VALUES 
     ('11111111-1111-1111-1111-111111111111', 'Alexander Vance (Synthetic Owner)', 'alex.vance@vaultkeep-demo.internal', '$2a$10$nybYQdcGqdxTZrmsHyfhOOy9rSUYd1f0WvrFR2L6j.LNoTFjPmmNG', 'OWNER', 'ACTIVE', true, CURRENT_TIMESTAMP),
-    ('22222222-2222-2222-2222-222222222222', 'Eleanor Vance (Synthetic Nominee)', 'eleanor.nominee@vaultkeep-demo.internal', '$2a$10$nybYQdcGqdxTZrmsHyfhOOy9rSUYd1f0WvrFR2L6j.LNoTFjPmmNG', 'NOMINEE', 'ACTIVE', true, CURRENT_TIMESTAMP),
-    ('33333333-3333-3333-3333-333333333333', 'Security Officer Marcus (Admin Operator)', 'admin.operator@vaultkeep-demo.internal', '$2a$10$nybYQdcGqdxTZrmsHyfhOOy9rSUYd1f0WvrFR2L6j.LNoTFjPmmNG', 'ADMIN', 'ACTIVE', true, CURRENT_TIMESTAMP)
+    ('22222222-2222-2222-2222-222222222222', 'Eleanor Vance (Synthetic Nominee)', 'eleanor.nominee@vaultkeep-demo.internal', '$2a$10$nybYQdcGqdxTZrmsHyfhOOy9rSUYd1f0WvrFR2L6j.LNoTFjPmmNG', 'NOMINEE', 'ACTIVE', true, CURRENT_TIMESTAMP)
 ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- 2. Owner Settings for Alexander

@@ -25,8 +25,7 @@ variable "db_username" {
 variable "db_password" {
   type        = string
   sensitive   = true
-  default     = "VaultKeepSecurePassword2026!"
-  description = "RDS master password"
+  description = "Amazon RDS master password (must be provided securely at runtime via TF_VAR_db_password or CLI var)"
 }
 
 variable "budget_amount" {

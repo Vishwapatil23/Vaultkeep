@@ -87,7 +87,13 @@ if (isPgConfigured) {
   });
 }
 
-// In-Memory Storage Engine for Standalone Testing & Zero-Dependency Local Demos
+// ==============================================================================
+// In-Memory Storage Engine for Offline Local Demonstrations & Isolated Unit Tests
+// WARNING: This in-memory store is STRICTLY for zero-dependency local development
+// and offline unit testing (when USE_IN_MEMORY_DB=true). It is NEVER used as
+// production storage and MUST NOT be seeded into live PostgreSQL / Amazon RDS.
+// Production admin accounts must be provisioned individually via npm run admin:create.
+// ==============================================================================
 interface MemoryStore {
   users: any[];
   owner_settings: any[];

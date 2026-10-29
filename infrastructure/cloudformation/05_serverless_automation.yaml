@@ -47,6 +47,20 @@ Resources:
                 Resource:
                   - !Ref InactivityAlertsTopic
                   - !Ref AccessGrantedTopic
+        - PolicyName: VaultKeepSSMParameterAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ssm:GetParameter'
+                  - 'ssm:GetParameters'
+                Resource:
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/vaultkeep/*'
+              - Effect: Allow
+                Action:
+                  - 'kms:Decrypt'
+                Resource: '*'
 
   # 3. AWS Lambda Function
   InactivityWorkerFunction:
@@ -66,6 +80,7 @@ Resources:
             Fn::ImportValue: VaultKeep-DBEndpoint
           DB_NAME: vaultkeep_db
           DB_USER: vaultkeep_admin
+          DB_PASSWORD_PARAM: /vaultkeep/prod/DB_PASSWORD
       Code:
         ZipFile: |
           exports.handler = async (event) => {
