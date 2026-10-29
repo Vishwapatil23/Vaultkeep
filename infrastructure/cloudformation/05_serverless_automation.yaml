@@ -75,7 +75,34 @@ Resources:
                   - 'kms:Decrypt'
                 Resource: '*'
 
-  # 3. AWS Lambda Function
+  # 3. Security Group for Lambda Function & RDS Ingress Rule
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for VaultKeep Inactivity Worker Lambda function permitting DB access'
+      VpcId:
+        Fn::ImportValue: VaultKeep-VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Name
+          Value: VaultKeep-Lambda-SG
+        - Key: Project
+          Value: VaultKeep
+
+  LambdaToRDSIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId:
+        Fn::ImportValue: VaultKeep-DBSGId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      Description: 'Allow inbound PostgreSQL traffic from Inactivity Worker Lambda'
+
+  # 4. AWS Lambda Function configured to join the VPC
   InactivityWorkerFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -85,6 +112,12 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
       MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - Fn::ImportValue: VaultKeep-PrivateAppSubnet1
+          - Fn::ImportValue: VaultKeep-PrivateAppSubnet2
       Environment:
         Variables:
           SNS_INACTIVITY_TOPIC_ARN: !Ref InactivityAlertsTopic
@@ -107,7 +140,7 @@ Resources:
         - Key: Project
           Value: VaultKeep
 
-  # 4. Amazon EventBridge Scheduled Rule
+  # 5. Amazon EventBridge Scheduled Rule
   DailyInactivityScheduleRule:
     Type: AWS::Events::Rule
     Properties:
@@ -127,7 +160,7 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt DailyInactivityScheduleRule.Arn
 
-  # 5. Amazon CloudWatch Alarm (Failed Decryption Attempts)
+  # 6. Amazon CloudWatch Alarm (Failed Decryption Attempts)
   FailedDecryptionAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -155,3 +188,7 @@ Outputs:
       Name: VaultKeep-AccessGrantedTopicArn
   LambdaFunctionArn:
     Value: !GetAtt InactivityWorkerFunction.Arn
+  LambdaSecurityGroupId:
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: VaultKeep-LambdaSGId

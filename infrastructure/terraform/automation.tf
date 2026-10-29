@@ -89,6 +89,11 @@ resource "aws_lambda_function" "inactivity_monitor" {
   filename         = "${path.module}/../lambda/inactivity_worker.zip"
   source_code_hash = filebase64sha256("${path.module}/../lambda/inactivity_worker.zip")
 
+  vpc_config {
+    subnet_ids         = [aws_subnet.private_app_1.id, aws_subnet.private_app_2.id]
+    security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+
   environment {
     variables = {
       DB_HOST                      = aws_db_instance.postgresql.address

@@ -157,16 +157,43 @@ resource "aws_security_group" "app_sg" {
   }
 }
 
+resource "aws_security_group" "lambda_sg" {
+  name        = "vaultkeep-lambda-sg"
+  description = "Security group for VaultKeep Inactivity Worker Lambda function permitting DB access"
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name    = "VaultKeep-Lambda-SG"
+    Project = "VaultKeep"
+  }
+}
+
 resource "aws_security_group" "db_sg" {
   name        = "vaultkeep-db-sg"
-  description = "Allow PostgreSQL traffic from app security group only"
+  description = "Allow PostgreSQL traffic from backend application and Lambda security groups"
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description     = "Allow PostgreSQL from Backend App SG"
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
     security_groups = [aws_security_group.app_sg.id]
+  }
+
+  ingress {
+    description     = "Allow PostgreSQL from Lambda SG"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.lambda_sg.id]
   }
 
   egress {
@@ -174,5 +201,10 @@ resource "aws_security_group" "db_sg" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name    = "VaultKeep-DB-SG"
+    Project = "VaultKeep"
   }
 }

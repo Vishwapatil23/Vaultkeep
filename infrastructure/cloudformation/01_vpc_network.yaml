@@ -195,19 +195,37 @@ Outputs:
       Name: VaultKeep-VpcId
   PublicSubnet1:
     Value: !Ref PublicSubnet1
+    Export:
+      Name: VaultKeep-PublicSubnet1
   PublicSubnet2:
     Value: !Ref PublicSubnet2
+    Export:
+      Name: VaultKeep-PublicSubnet2
   PrivateAppSubnet1:
     Value: !Ref PrivateAppSubnet1
+    Export:
+      Name: VaultKeep-PrivateAppSubnet1
   PrivateAppSubnet2:
     Value: !Ref PrivateAppSubnet2
+    Export:
+      Name: VaultKeep-PrivateAppSubnet2
   PrivateDBSubnet1:
     Value: !Ref PrivateDBSubnet1
+    Export:
+      Name: VaultKeep-PrivateDBSubnet1
   PrivateDBSubnet2:
     Value: !Ref PrivateDBSubnet2
+    Export:
+      Name: VaultKeep-PrivateDBSubnet2
   ALBSGId:
     Value: !Ref ALBSecurityGroup
+    Export:
+      Name: VaultKeep-ALBSGId
   AppSGId:
     Value: !Ref AppSecurityGroup
+    Export:
+      Name: VaultKeep-AppSGId
   DBSGId:
     Value: !Ref DBSecurityGroup
+    Export:
+      Name: VaultKeep-DBSGId

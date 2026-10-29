@@ -27,3 +27,8 @@ output "access_granted_sns_topic_arn" {
   value       = aws_sns_topic.access_granted.arn
   description = "ARN for the access granted SNS topic"
 }
+
+output "lambda_security_group_id" {
+  value       = aws_security_group.lambda_sg.id
+  description = "Security group ID for Inactivity Worker Lambda"
+}
