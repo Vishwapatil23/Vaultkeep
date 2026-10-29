@@ -141,6 +141,59 @@ Resources:
       SubnetId: !Ref PublicSubnet2
       RouteTableId: !Ref PublicRouteTable
 
+  # NAT Gateway & Elastic IP for Outbound Traffic from Private Subnets
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: VaultKeep-NAT-EIP
+        - Key: Project
+          Value: VaultKeep
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: VaultKeep-NAT-Gateway
+        - Key: Project
+          Value: VaultKeep
+
+  # Private Route Table routing outbound traffic (0.0.0.0/0) through the NAT Gateway
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: VaultKeep-Private-Route-Table
+        - Key: Project
+          Value: VaultKeep
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NatGateway
+
+  PrivateAppSubnet1RouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateAppSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateAppSubnet2RouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateAppSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
   # Security Groups
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -174,19 +227,124 @@ Resources:
         - Key: Name
           Value: VaultKeep-App-SG
 
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: vaultkeep-lambda-sg
+      GroupDescription: 'Allow Lambda inactivity worker to access RDS and VPC endpoints'
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          FromPort: -1
+          ToPort: -1
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Name
+          Value: VaultKeep-Lambda-SG
+        - Key: Project
+          Value: VaultKeep
+
+  VPCEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: vaultkeep-vpce-sg
+      GroupDescription: 'Allow inbound HTTPS to VPC Endpoints from VPC subnets'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCIDR
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          FromPort: -1
+          ToPort: -1
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Name
+          Value: VaultKeep-VPCE-SG
+        - Key: Project
+          Value: VaultKeep
+
   DBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: 'Allow PostgreSQL traffic from backend application security group only'
+      GroupDescription: 'Allow PostgreSQL traffic from backend application and Lambda security groups'
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
           SourceSecurityGroupId: !Ref AppSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
       Tags:
         - Key: Name
           Value: VaultKeep-RDS-SG
+
+  # VPC Interface Endpoints for Private Connectivity
+  SSMEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ssm'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateAppSubnet1
+        - !Ref PrivateAppSubnet2
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+      PrivateDnsEnabled: true
+      Tags:
+        - Key: Name
+          Value: VaultKeep-SSM-VPCEndpoint
+
+  SNSEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.sns'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateAppSubnet1
+        - !Ref PrivateAppSubnet2
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+      PrivateDnsEnabled: true
+      Tags:
+        - Key: Name
+          Value: VaultKeep-SNS-VPCEndpoint
+
+  KMSEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.kms'
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateAppSubnet1
+        - !Ref PrivateAppSubnet2
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+      PrivateDnsEnabled: true
+      Tags:
+        - Key: Name
+          Value: VaultKeep-KMS-VPCEndpoint
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable
+      Tags:
+        - Key: Name
+          Value: VaultKeep-S3-VPCEndpoint
 
 Outputs:
   VpcId:
@@ -229,3 +387,15 @@ Outputs:
     Value: !Ref DBSecurityGroup
     Export:
       Name: VaultKeep-DBSGId
+  LambdaSGId:
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: VaultKeep-LambdaSGId
+  NatGatewayId:
+    Value: !Ref NatGateway
+    Export:
+      Name: VaultKeep-NatGatewayId
+  PrivateRouteTable:
+    Value: !Ref PrivateRouteTable
+    Export:
+      Name: VaultKeep-PrivateRouteTable

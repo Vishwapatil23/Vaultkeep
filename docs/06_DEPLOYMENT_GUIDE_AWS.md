@@ -17,7 +17,7 @@ This guide details the end-to-end deployment of VaultKeep on Amazon Web Services
 Deploy the templates located in `vaultkeep/infrastructure/cloudformation/` in the following order:
 
 ### Step 1: Deploy VPC Network Stack
-Provisions the custom VPC (`10.0.0.0/16`), 2 public subnets, 2 private app subnets, 2 private db subnets, Internet Gateway, route tables, and least-privilege security groups.
+Provisions the custom VPC (`10.0.0.0/16`), 2 public subnets, 2 private app subnets, 2 private db subnets, Internet Gateway, NAT Gateway with Elastic IP, private route tables, VPC Endpoints (SSM Parameter Store, Amazon SNS, AWS KMS, Amazon S3), and least-privilege security groups. This ensures that Lambda workers and EC2 backend instances in private subnets can privately reach SSM Parameter Store and SNS without public internet routing.
 
 ```bash
 aws cloudformation create-stack \

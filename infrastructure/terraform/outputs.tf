@@ -32,3 +32,28 @@ output "lambda_security_group_id" {
   value       = aws_security_group.lambda_sg.id
   description = "Security group ID for Inactivity Worker Lambda"
 }
+
+output "nat_gateway_public_ip" {
+  value       = aws_eip.nat.public_ip
+  description = "Public IP of the NAT Gateway for private subnet outbound traffic"
+}
+
+output "private_route_table_id" {
+  value       = aws_route_table.private.id
+  description = "ID of the private route table routed to NAT Gateway"
+}
+
+output "vpc_endpoint_ssm_id" {
+  value       = aws_vpc_endpoint.ssm.id
+  description = "ID of the Systems Manager Interface VPC Endpoint"
+}
+
+output "vpc_endpoint_sns_id" {
+  value       = aws_vpc_endpoint.sns.id
+  description = "ID of the SNS Interface VPC Endpoint"
+}
+
+output "vpc_endpoint_kms_id" {
+  value       = aws_vpc_endpoint.kms.id
+  description = "ID of the KMS Interface VPC Endpoint"
+}
