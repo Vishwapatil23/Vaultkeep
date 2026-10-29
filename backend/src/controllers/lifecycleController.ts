@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { memoryDb } from '../db';
+import { memoryDb, saveMemoryDb } from '../db';
 import { LifecycleService } from '../services/lifecycleService';
 import { AuditService } from '../services/auditService';
 
@@ -87,6 +87,7 @@ export class LifecycleController {
       if (warningDays) settings.warning_days = parseInt(warningDays, 10);
       if (timezone) settings.timezone = timezone;
       settings.updated_at = new Date().toISOString();
+      saveMemoryDb();
     }
 
     await AuditService.recordEvent({

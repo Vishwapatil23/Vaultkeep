@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { memoryDb } from '../db';
+import { memoryDb, saveMemoryDb } from '../db';
 import { AuditService } from '../services/auditService';
 
 export class ReleaseRuleController {
@@ -86,6 +86,7 @@ export class ReleaseRuleController {
       };
       memoryDb.document_release_rules.push(rule);
     }
+    saveMemoryDb();
 
     await AuditService.recordEvent({
       actorId: req.user.id,
@@ -130,6 +131,7 @@ export class ReleaseRuleController {
 
     const rule = memoryDb.document_release_rules[ruleIndex];
     memoryDb.document_release_rules.splice(ruleIndex, 1);
+    saveMemoryDb();
 
     await AuditService.recordEvent({
       actorId: req.user.id,

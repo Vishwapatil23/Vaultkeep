@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { memoryDb } from '../db';
+import { memoryDb, saveMemoryDb } from '../db';
 import { EnvelopeEncryptionService } from '../crypto/envelopeEncryption';
 import { StorageService } from '../services/storageService';
 import { AuditService } from '../services/auditService';
@@ -64,6 +64,7 @@ export class DocumentController {
       };
 
       memoryDb.documents.unshift(newDocument);
+      saveMemoryDb();
 
       // 4. Audit Log
       await AuditService.recordEvent({
@@ -222,6 +223,7 @@ export class DocumentController {
 
     // Revoke any release rules for this document
     memoryDb.document_release_rules = memoryDb.document_release_rules.filter(r => r.document_id !== id);
+    saveMemoryDb();
 
     await AuditService.recordEvent({
       actorId: req.user.id,

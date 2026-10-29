@@ -152,9 +152,36 @@ const memoryStore: MemoryStore = {
 
 import fs from 'fs';
 import path from 'path';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const DB_FILE_DIR = path.resolve(__dirname, '../../data');
 const DB_FILE_PATH = path.join(DB_FILE_DIR, 'vaultkeep_db.json');
+
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+const S3_BUCKET = process.env.S3_BUCKET_NAME || 'vaultkeep-documents-327973843616-us-east-1';
+const DB_BACKUP_KEY = 'database_backup/vaultkeep_db.json';
+
+let s3Client: S3Client | null = null;
+if (process.env.AWS_MOCK_SERVICES !== 'true') {
+  s3Client = new S3Client({ region: AWS_REGION });
+}
+
+export async function syncDbToAwsS3() {
+  if (!s3Client || process.env.AWS_MOCK_SERVICES === 'true') return;
+  try {
+    const raw = JSON.stringify(memoryStore, null, 2);
+    await s3Client.send(new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: DB_BACKUP_KEY,
+      Body: Buffer.from(raw, 'utf-8'),
+      ContentType: 'application/json',
+      ServerSideEncryption: 'AES256'
+    }));
+    console.log(`[AWS S3 Sync] Database state successfully backed up to s3://${S3_BUCKET}/${DB_BACKUP_KEY}`);
+  } catch (err: any) {
+    console.warn(`[AWS S3 Sync Warning] Failed to backup database to S3: ${err.message}`);
+  }
+}
 
 export function saveMemoryDb() {
   try {
@@ -162,8 +189,29 @@ export function saveMemoryDb() {
       fs.mkdirSync(DB_FILE_DIR, { recursive: true });
     }
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(memoryStore, null, 2), 'utf-8');
+    // Mirror update to AWS S3 in real time
+    syncDbToAwsS3().catch(() => {});
   } catch (err: any) {
     console.warn('[DB Persistence Warning] Failed to save local db:', err.message);
+  }
+}
+
+function applyParsedDb(parsed: any) {
+  for (const key of Object.keys(parsed) as (keyof MemoryStore)[]) {
+    if (Array.isArray(parsed[key]) && parsed[key].length > 0) {
+      if (key === 'users') {
+        const userMap = new Map<string, any>();
+        for (const u of memoryStore.users) {
+          userMap.set(u.email.toLowerCase(), u);
+        }
+        for (const u of parsed.users) {
+          userMap.set(u.email.toLowerCase(), u);
+        }
+        memoryStore.users = Array.from(userMap.values());
+      } else {
+        (memoryStore as any)[key] = parsed[key];
+      }
+    }
   }
 }
 
@@ -172,23 +220,7 @@ function loadMemoryDb() {
     if (fs.existsSync(DB_FILE_PATH)) {
       const raw = fs.readFileSync(DB_FILE_PATH, 'utf-8');
       const parsed = JSON.parse(raw);
-      // Merge restored collections while preserving default demo users if missing
-      for (const key of Object.keys(parsed) as (keyof MemoryStore)[]) {
-        if (Array.isArray(parsed[key]) && parsed[key].length > 0) {
-          if (key === 'users') {
-            const userMap = new Map<string, any>();
-            for (const u of memoryStore.users) {
-              userMap.set(u.email.toLowerCase(), u);
-            }
-            for (const u of parsed.users) {
-              userMap.set(u.email.toLowerCase(), u);
-            }
-            memoryStore.users = Array.from(userMap.values());
-          } else {
-            (memoryStore as any)[key] = parsed[key];
-          }
-        }
-      }
+      applyParsedDb(parsed);
       console.log(`[DB Persistence] Successfully loaded ${memoryStore.users.length} users and ${memoryStore.nominees.length} nominees from persistent storage.`);
     } else {
       saveMemoryDb();
@@ -199,6 +231,8 @@ function loadMemoryDb() {
 }
 
 loadMemoryDb();
+// Trigger initial S3 sync
+syncDbToAwsS3().catch(() => {});
 
 export const memoryDb = memoryStore;
 

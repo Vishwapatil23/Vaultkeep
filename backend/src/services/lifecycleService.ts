@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { memoryDb } from '../db';
+import { memoryDb, saveMemoryDb } from '../db';
 import { NotificationService } from './notificationService';
 import { AuditService } from './auditService';
 
@@ -74,6 +74,8 @@ export class LifecycleService {
         : `Check-in confirmed. Next deadline in ${intervalDays} days`;
       lifecycle.updated_at = now.toISOString();
     }
+
+    saveMemoryDb();
 
     // Record Audit Log
     await AuditService.recordEvent({
@@ -246,6 +248,8 @@ export class LifecycleService {
         });
       }
     }
+
+    saveMemoryDb();
 
     return {
       evaluatedCount: memoryDb.account_lifecycle.length,

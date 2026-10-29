@@ -29,9 +29,10 @@ export class StorageService {
           Key: key,
           Body: ciphertext,
           ContentType: contentType,
-          ServerSideEncryption: 'aws:kms', // Defense-in-depth SSE
+          ServerSideEncryption: 'AES256',
         });
         await s3Client.send(command);
+        console.log(`[S3 Upload] Successfully persisted encrypted object to s3://${S3_BUCKET}/${key}`);
         return `s3://${S3_BUCKET}/${key}`;
       } catch (err: any) {
         console.warn(`[S3 Upload] Cloud upload failed, writing to local mock: ${err.message}`);

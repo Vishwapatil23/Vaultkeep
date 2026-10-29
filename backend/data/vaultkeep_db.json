@@ -130,7 +130,27 @@
       "updated_at": "2026-10-29T07:26:12.428Z"
     }
   ],
-  "documents": [],
+  "documents": [
+    {
+      "id": "7a079cd4-c8d8-4c7f-b373-7658d01786e3",
+      "owner_id": "11111111-1111-1111-1111-111111111111",
+      "original_name": "test_estate_plan.txt",
+      "storage_key": "vault/11111111-1111-1111-1111-111111111111/7a079cd4-c8d8-4c7f-b373-7658d01786e3.enc",
+      "mime_type": "text/plain",
+      "file_size_bytes": 96,
+      "category": "LEGAL",
+      "upload_status": "UPLOADED",
+      "encryption_algorithm": "AES-256-GCM",
+      "encryption_version": "v1",
+      "kms_key_id": "alias/vaultkeep-master-key",
+      "encrypted_dek_base64": "AQIDAHgZ7e56dPTtPqRzTWJPy7eWuHOfdtWaf+0cvzhGLbM+DAGkZS67IsFkZu2e27E66vkSAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMPEd/Ko7gAdcZizSaAgEQgDv3Qkjqi/P6qufLWjVAQJONnoNSEOXivFeQ0agWoeNN5dRWX7qt5CmzdKQUI74isXxT3h70SdxoaCDTAA==",
+      "dek_iv_base64": "d2tmk16IeEPv455b",
+      "auth_tag_base64": "GfdeAocEfuYFF5cz4ioq0Q==",
+      "checksum_sha256": "5f8cff25550ea3616758833a81108adb1526e97a9c479fbf8c69f4c23ab88f23",
+      "created_at": "2026-10-29T08:12:15.415Z",
+      "updated_at": "2026-10-29T08:12:15.415Z"
+    }
+  ],
   "document_release_rules": [],
   "check_ins": [
     {
@@ -199,6 +219,72 @@
     }
   ],
   "audit_logs": [
+    {
+      "id": "a95c95de-d52f-4ae7-a3a6-cc04c08cd66f",
+      "actor_id": "11111111-1111-1111-1111-111111111111",
+      "actor_email": "alex.vance@vaultkeep-demo.internal",
+      "actor_role": "OWNER",
+      "action": "DOCUMENT_DECRYPTED_AND_DOWNLOADED",
+      "resource_type": "DOCUMENT",
+      "resource_id": "7a079cd4-c8d8-4c7f-b373-7658d01786e3",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.9711",
+      "correlation_id": "5d181298-58b8-4456-a326-e963dcf43375",
+      "metadata": {},
+      "created_at": "2026-10-29T08:12:58.973Z"
+    },
+    {
+      "id": "93d329fc-e32b-437c-bc9c-e9ab5d730ba4",
+      "actor_id": "11111111-1111-1111-1111-111111111111",
+      "actor_email": "alex.vance@vaultkeep-demo.internal",
+      "actor_role": "OWNER",
+      "action": "USER_LOGIN",
+      "resource_type": "SESSION",
+      "resource_id": "11111111-1111-1111-1111-111111111111",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.9711",
+      "correlation_id": "7e9a304c-424f-4ae1-996e-ca527b0cb6b0",
+      "metadata": {},
+      "created_at": "2026-10-29T08:12:55.239Z"
+    },
+    {
+      "id": "6b473c1d-f95f-42c5-88d9-e0baaa70871c",
+      "actor_id": "11111111-1111-1111-1111-111111111111",
+      "actor_email": "alex.vance@vaultkeep-demo.internal",
+      "actor_role": "OWNER",
+      "action": "DOCUMENT_ENCRYPTED_AND_UPLOADED",
+      "resource_type": "DOCUMENT",
+      "resource_id": "7a079cd4-c8d8-4c7f-b373-7658d01786e3",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "curl/8.21.0",
+      "correlation_id": "ff180038-6935-4748-b0bc-d39cb061ce33",
+      "metadata": {
+        "originalName": "test_estate_plan.txt",
+        "size": 96,
+        "category": "LEGAL",
+        "algorithm": "AES-256-GCM",
+        "sha256": "5f8cff25550ea3616758833a81108adb1526e97a9c479fbf8c69f4c23ab88f23"
+      },
+      "created_at": "2026-10-29T08:12:15.468Z"
+    },
+    {
+      "id": "a048f310-c846-42f7-91cf-5eaadec505f0",
+      "actor_id": "11111111-1111-1111-1111-111111111111",
+      "actor_email": "alex.vance@vaultkeep-demo.internal",
+      "actor_role": "OWNER",
+      "action": "USER_LOGIN",
+      "resource_type": "SESSION",
+      "resource_id": "11111111-1111-1111-1111-111111111111",
+      "outcome": "SUCCESS",
+      "ip_address": "::1",
+      "user_agent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.9711",
+      "correlation_id": "b9d2142f-1b8d-47a3-b7de-51d57f55bcfd",
+      "metadata": {},
+      "created_at": "2026-10-29T08:12:12.528Z"
+    },
     {
       "id": "58a8fbae-d31b-4209-9884-fab7df270f3a",
       "actor_id": "11111111-1111-1111-1111-111111111111",
