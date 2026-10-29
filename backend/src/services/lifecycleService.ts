@@ -17,13 +17,13 @@ export class LifecycleService {
     if (!owner) throw new Error('Owner account not found');
 
     const settings = memoryDb.owner_settings.find(s => s.owner_id === ownerId) || {
-      check_in_interval_days: 30,
+      check_in_interval_days: 90,
       grace_period_days: 7,
       warning_days: 5
     };
 
     const now = new Date();
-    const intervalDays = settings.check_in_interval_days || 30;
+    const intervalDays = settings.check_in_interval_days || 90;
     const nextDeadline = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000);
 
     // Record check-in

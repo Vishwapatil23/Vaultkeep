@@ -84,7 +84,7 @@ const memoryStore: MemoryStore = {
     {
       id: '44444444-4444-4444-4444-444444444444',
       owner_id: '11111111-1111-1111-1111-111111111111',
-      check_in_interval_days: 30,
+      check_in_interval_days: 90,
       grace_period_days: 7,
       warning_days: 5,
       reminder_email_enabled: true,
@@ -120,7 +120,7 @@ const memoryStore: MemoryStore = {
       owner_id: '11111111-1111-1111-1111-111111111111',
       current_state: 'ACTIVE',
       last_successful_check_in: new Date().toISOString(),
-      next_check_in_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      next_check_in_deadline: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
       flagged_inactive_at: null,
       grace_period_ends_at: null,
       release_execution_state: 'NONE',

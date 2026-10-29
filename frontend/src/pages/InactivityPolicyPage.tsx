@@ -6,7 +6,7 @@ import { Clock, Shield, AlertTriangle, CheckCircle, Play, RefreshCw, Zap, Bell, 
 export const InactivityPolicyPage: React.FC = () => {
   const [lifecycle, setLifecycle] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
-  const [checkInInterval, setCheckInInterval] = useState(30);
+  const [checkInInterval, setCheckInInterval] = useState(90);
   const [gracePeriod, setGracePeriod] = useState(7);
   const [warningDays, setWarningDays] = useState(5);
   const [loading, setLoading] = useState(true);
@@ -20,7 +20,7 @@ export const InactivityPolicyPage: React.FC = () => {
       setLifecycle(res.lifecycle);
       setSettings(res.settings);
       if (res.settings) {
-        setCheckInInterval(res.settings.check_in_interval_days || 30);
+        setCheckInInterval(res.settings.check_in_interval_days || 90);
         setGracePeriod(res.settings.grace_period_days || 7);
         setWarningDays(res.settings.warning_days || 5);
       }
