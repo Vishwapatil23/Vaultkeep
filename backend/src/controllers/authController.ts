@@ -97,13 +97,14 @@ export class AuthController {
       }
     }
 
-    // 4. Link any pending nominee records to this new user in RDS
+    // 4. Link any nominee records to this new user in RDS (without marking as ACCEPTED prematurely)
     try {
       await query(
         `UPDATE nominees
-         SET nominee_user_id = $1, invitation_status = 'ACCEPTED', verified_at = $2, updated_at = $3
-         WHERE LOWER(email) = LOWER($4)`,
-        [userId, now, now, normalizedEmail]
+         SET nominee_user_id = $1, updated_at = $2
+         WHERE LOWER(email) = LOWER($3)
+           AND nominee_user_id IS NULL`,
+        [userId, now, normalizedEmail]
       );
     } catch (err: any) {
       console.warn('[AuthController:LinkNominees:Warning]', err.message);
