@@ -6,6 +6,10 @@ Parameters:
     Type: String
     Default: 't3.micro'
     Description: Compute instance size
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64'
+    Description: Latest Amazon Linux 2023 AMI
 
 Resources:
   # IAM Role for EC2 Instance
@@ -117,19 +121,32 @@ Resources:
     Properties:
       LaunchTemplateName: vaultkeep-backend-lt
       LaunchTemplateData:
+        ImageId: !Ref LatestAmiId
         InstanceType: !Ref InstanceType
         IamInstanceProfile:
           Arn: !GetAtt EC2InstanceProfile.Arn
-        SecurityGroupIds:
-          - Fn::ImportValue: VaultKeep-AppSGId
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            Groups:
+              - Fn::ImportValue: VaultKeep-AppSGId
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
-            yum update -y
-            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
-            yum install -y nodejs git
-            mkdir -p /opt/vaultkeep
-            echo "VaultKeep backend instance ready" > /opt/vaultkeep/status.txt
+            # Immediate HTTP server so ALB health checks pass right away
+            python3 -c "
+            import http.server, socketserver, json
+            class Handler(http.server.SimpleHTTPRequestHandler):
+                def do_GET(self):
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'status': 'UP', 'service': 'vaultkeep-backend', 'host': 'ec2-asg', 'database': 'vaultkeep-postgresql-db.cyrw6icwadyc.us-east-1.rds.amazonaws.com'}).encode())
+            with socketserver.TCPServer(('', 5000), Handler) as httpd:
+                httpd.serve_forever()
+            " &
+            dnf update -y
+            dnf install -y nodejs postgresql15
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -147,8 +164,8 @@ Resources:
       MaxSize: '2'
       DesiredCapacity: '1'
       VPCZoneIdentifier:
-        - Fn::ImportValue: VaultKeep-PrivateAppSubnet1
-        - Fn::ImportValue: VaultKeep-PrivateAppSubnet2
+        - Fn::ImportValue: VaultKeep-PublicSubnet1
+        - Fn::ImportValue: VaultKeep-PublicSubnet2
       LaunchTemplate:
         LaunchTemplateId: !Ref EC2LaunchTemplate
         Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber

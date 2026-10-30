@@ -134,5 +134,6 @@ export const api = {
   // Notifications & Audit
   getNotifications: () => request('/notifications'),
   getAuditLogs: (limit = 100) => request(`/audit-logs?limit=${limit}`),
-  getSystemHealth: () => request('/admin/system-health')
+  getSystemHealth: () => request('/admin/system-health'),
+  getDatabaseView: (table = 'users') => request(`/admin/database-view?table=${table}`)
 };

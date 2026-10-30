@@ -60,5 +60,6 @@ router.get('/nominee/access-history', authenticateToken, NomineeController.getNo
 router.get('/notifications', authenticateToken, AdminController.getNotifications);
 router.get('/audit-logs', authenticateToken, AdminController.getAuditLogs);
 router.get('/admin/system-health', AdminController.getSystemHealth);
+router.get('/admin/database-view', authenticateToken, requireRole(['ADMIN']), AdminController.getDatabaseView);
 
 export default router;

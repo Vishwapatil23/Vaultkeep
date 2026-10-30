@@ -361,7 +361,6 @@ export const NomineeDirectory: React.FC = () => {
         {createdToken ? (
           <div>
             <div style={{
-              backgroundColor: 'var(--success-bg)',
               color: requiresSnsConfirm ? '#92400e' : 'var(--success)',
               backgroundColor: requiresSnsConfirm ? '#fef3c7' : 'var(--success-bg)',
               padding: '0.85rem',

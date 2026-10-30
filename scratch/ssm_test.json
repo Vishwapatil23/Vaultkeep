@@ -1,0 +1,11 @@
+{
+  "InstanceIds": ["i-0da4480b13bdc4a75"],
+  "DocumentName": "AWS-RunShellScript",
+  "Parameters": {
+    "commands": [
+      "uptime",
+      "curl -s http://localhost:5000/health",
+      "pg_isready -h vaultkeep-postgresql-db.cyrw6icwadyc.us-east-1.rds.amazonaws.com -p 5432"
+    ]
+  }
+}

@@ -67,7 +67,7 @@ if (DB_SSL) {
   }
 }
 
-let pool: Pool | null = null;
+export let pool: Pool | null = null;
 
 if (isPgConfigured) {
   pool = new Pool({
@@ -79,7 +79,8 @@ if (isPgConfigured) {
     ssl: sslConfig,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 30000,
+    keepAlive: true,
   });
 
   pool.on('error', (err) => {

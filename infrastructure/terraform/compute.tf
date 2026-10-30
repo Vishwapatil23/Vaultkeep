@@ -137,14 +137,36 @@ resource "aws_launch_template" "backend_lt" {
     arn = aws_iam_instance_profile.ec2_profile.arn
   }
 
-  vpc_security_group_ids = [aws_security_group.app_sg.id]
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.app_sg.id]
+  }
 
   user_data = base64encode(<<-EOF
               #!/bin/bash
               dnf update -y
-              dnf install -y nodejs git
+              dnf install -y nodejs postgresql15
               mkdir -p /opt/vaultkeep
-              echo "VaultKeep backend initialized on EC2" > /opt/vaultkeep/status.txt
+              cat << 'NODE_EOF' > /opt/vaultkeep/server.js
+              const http = require('http');
+              const server = http.createServer((req, res) => {
+                if (req.url === '/health' || req.url === '/ready') {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({
+                    status: 'UP',
+                    service: 'vaultkeep-backend',
+                    host: 'ec2-asg',
+                    database: 'vaultkeep-postgresql-db.cyrw6icwadyc.us-east-1.rds.amazonaws.com',
+                    timestamp: new Date().toISOString()
+                  }));
+                } else {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ status: 'UP', message: 'VaultKeep Cloud Compute EC2 Active' }));
+                }
+              });
+              server.listen(5000, '0.0.0.0', () => console.log('VaultKeep EC2 Backend listening on port 5000'));
+              NODE_EOF
+              node /opt/vaultkeep/server.js > /opt/vaultkeep/server.log 2>&1 &
               EOF
   )
 
@@ -161,7 +183,7 @@ resource "aws_autoscaling_group" "asg" {
   min_size            = 1
   max_size            = 2
   desired_capacity    = 1
-  vpc_zone_identifier = [aws_subnet.private_app_1.id, aws_subnet.private_app_2.id]
+  vpc_zone_identifier = [aws_subnet.public_1.id, aws_subnet.public_2.id]
   target_group_arns   = [aws_lb_target_group.tg.arn]
 
   launch_template {

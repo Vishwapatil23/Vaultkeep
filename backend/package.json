@@ -10,7 +10,8 @@
     "test": "jest --detectOpenHandles --forceExit",
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/db/seed.ts",
-    "admin:create": "tsx src/scripts/create_admin.ts"
+    "admin:create": "tsx src/scripts/create_admin.ts",
+    "db:view": "tsx src/scripts/view_db.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cloudwatch": "^3.600.0",
