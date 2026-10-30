@@ -263,6 +263,11 @@ export const DocumentVault: React.FC = () => {
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                             SHA256: {doc.checksumSha256 ? doc.checksumSha256.substring(0, 16) + '...' : 'Verified'}
                           </div>
+                          {doc.storageKey && (
+                            <div style={{ fontSize: '0.675rem', color: 'var(--trust-teal)', fontFamily: 'var(--font-mono)', marginTop: '0.15rem' }}>
+                              S3: {doc.storageKey}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>

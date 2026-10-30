@@ -138,7 +138,7 @@ export class DocumentController {
     try {
       const result = await query(
         `SELECT d.id, d.original_name, d.category, d.file_size_bytes, d.mime_type,
-                d.encryption_algorithm, d.encryption_version, d.checksum_sha256, d.upload_status, d.created_at,
+                d.encryption_algorithm, d.encryption_version, d.checksum_sha256, d.upload_status, d.storage_key, d.created_at,
                 (SELECT COUNT(*)::int FROM document_release_rules r WHERE r.document_id = d.id AND r.rule_status = 'ACTIVE') as assigned_nominees_count
          FROM documents d
          WHERE d.owner_id = $1 AND d.upload_status != 'DELETED'
@@ -156,6 +156,8 @@ export class DocumentController {
         encryptionVersion: d.encryption_version,
         checksumSha256: d.checksum_sha256,
         uploadStatus: d.upload_status,
+        storageKey: d.storage_key,
+        s3Location: `s3://${process.env.S3_BUCKET_NAME || 'vaultkeep-documents-327973843616-us-east-1'}/${d.storage_key}`,
         assignedNomineesCount: d.assigned_nominees_count || 0,
         createdAt: d.created_at
       }));
