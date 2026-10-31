@@ -14,7 +14,7 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 export class AuthController {
   public static async register(req: Request, res: Response): Promise<void> {
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, role } = req.body;
 
     if (!name || !email || !password) {
       res.status(400).json({ error: 'Name, email, and password are required fields.' });
@@ -50,9 +50,24 @@ export class AuthController {
     const password_hash = await bcrypt.hash(password, saltRounds);
     const userId = uuidv4();
     const now = new Date();
-    // Public signup strictly creates an OWNER account.
-    // Admin accounts and Nominee accounts are provisioned separately through administrative seeding or invitation workflows.
-    const assignedRole = 'OWNER';
+    // Role assignment:
+    // Users can register as 'OWNER' or 'NOMINEE'.
+    // If user was invited as a nominee, default to 'NOMINEE'.
+    // 'ADMIN' is strictly forbidden via public registration and defaults to 'OWNER'.
+    let assignedRole: 'OWNER' | 'NOMINEE' = 'OWNER';
+    const requestedRole = (role || '').toString().trim().toUpperCase();
+    if (requestedRole === 'NOMINEE') {
+      assignedRole = 'NOMINEE';
+    } else if (requestedRole !== 'OWNER') {
+      try {
+        const nomineeCheck = await query('SELECT id FROM nominees WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
+        if (nomineeCheck.rows && nomineeCheck.rows.length > 0) {
+          assignedRole = 'NOMINEE';
+        }
+      } catch (err: any) {
+        console.warn('[AuthController:NomineeCheck:Warning]', err.message);
+      }
+    }
 
     // 2. Persist new user in RDS PostgreSQL
     try {
@@ -97,17 +112,60 @@ export class AuthController {
       }
     }
 
-    // 4. Link any nominee records to this new user in RDS (without marking as ACCEPTED prematurely)
-    try {
-      await query(
-        `UPDATE nominees
-         SET nominee_user_id = $1, updated_at = $2
-         WHERE LOWER(email) = LOWER($3)
-           AND nominee_user_id IS NULL`,
-        [userId, now, normalizedEmail]
-      );
-    } catch (err: any) {
-      console.warn('[AuthController:LinkNominees:Warning]', err.message);
+    // 4. Link or insert nominee record in RDS nominees table
+    if (assignedRole === 'NOMINEE') {
+      try {
+        const existingNominee = await query(
+          'SELECT id, owner_id FROM nominees WHERE LOWER(email) = LOWER($1)',
+          [normalizedEmail]
+        );
+
+        if (existingNominee.rows && existingNominee.rows.length > 0) {
+          // Link all matching nominee records to this new user account
+          await query(
+            `UPDATE nominees
+             SET nominee_user_id = $1,
+                 full_name = COALESCE(NULLIF(full_name, ''), $2),
+                 updated_at = $3
+             WHERE LOWER(email) = LOWER($4)`,
+            [userId, name.trim(), now, normalizedEmail]
+          );
+        } else {
+          // Nominee registered directly without prior owner invitation; add them directly to nominees table
+          const nomineeId = uuidv4();
+          await query(
+            `INSERT INTO nominees (
+              id, owner_id, nominee_user_id, full_name, email, phone,
+              relationship_type, invitation_status, verified_at, created_at, updated_at
+            ) VALUES ($1, NULL, $2, $3, $4, $5, 'Family', 'ACCEPTED', $6, $7, $8)`,
+            [
+              nomineeId,
+              userId,
+              name.trim(),
+              normalizedEmail,
+              phone ? phone.trim() : null,
+              now,
+              now,
+              now
+            ]
+          );
+        }
+      } catch (err: any) {
+        console.error('[AuthController:NomineeRegistration:Error]', err.message);
+      }
+    } else {
+      // If owner, link any preexisting nominee records if this email was ever invited elsewhere
+      try {
+        await query(
+          `UPDATE nominees
+           SET nominee_user_id = $1, updated_at = $2
+           WHERE LOWER(email) = LOWER($3)
+             AND nominee_user_id IS NULL`,
+          [userId, now, normalizedEmail]
+        );
+      } catch (err: any) {
+        console.warn('[AuthController:LinkNominees:Warning]', err.message);
+      }
     }
 
     await AuditService.recordEvent({

@@ -140,33 +140,69 @@ export class NomineeController {
       console.warn('[NomineeController:UserCheck:Warning]', err.message);
     }
 
-    const nomineeId = uuidv4();
+    let nomineeId = uuidv4();
 
     // 7. Persist to PostgreSQL database directly
     try {
-      await query(
-        `INSERT INTO nominees (
-          id, owner_id, nominee_user_id, full_name, email, phone,
-          relationship_type, invitation_token, invitation_token_hash, invitation_status,
-          invitation_expires_at, verified_at, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-        [
-          nomineeId,
-          req.user.id,
-          linkedUserId,
-          fullName.trim(),
-          normalizedEmail,
-          phone ? phone.trim() : null,
-          relationshipType,
-          rawInvitationToken,
-          tokenHash,
-          invitationStatus,
-          expiresAt,
-          verifiedAt,
-          now,
-          now
-        ]
+      const standaloneRes = await query(
+        'SELECT id FROM nominees WHERE owner_id IS NULL AND LOWER(email) = LOWER($1)',
+        [normalizedEmail]
       );
+
+      if (standaloneRes.rows && standaloneRes.rows.length > 0) {
+        nomineeId = standaloneRes.rows[0].id;
+        await query(
+          `UPDATE nominees SET
+            owner_id = $1,
+            nominee_user_id = COALESCE($2, nominee_user_id),
+            full_name = $3,
+            phone = COALESCE($4, phone),
+            relationship_type = $5,
+            invitation_token = $6,
+            invitation_token_hash = $7,
+            invitation_status = $8,
+            invitation_expires_at = $9,
+            updated_at = $10
+           WHERE id = $11`,
+          [
+            req.user.id,
+            linkedUserId,
+            fullName.trim(),
+            phone ? phone.trim() : null,
+            relationshipType,
+            rawInvitationToken,
+            tokenHash,
+            invitationStatus,
+            expiresAt,
+            now,
+            nomineeId
+          ]
+        );
+      } else {
+        await query(
+          `INSERT INTO nominees (
+            id, owner_id, nominee_user_id, full_name, email, phone,
+            relationship_type, invitation_token, invitation_token_hash, invitation_status,
+            invitation_expires_at, verified_at, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          [
+            nomineeId,
+            req.user.id,
+            linkedUserId,
+            fullName.trim(),
+            normalizedEmail,
+            phone ? phone.trim() : null,
+            relationshipType,
+            rawInvitationToken,
+            tokenHash,
+            invitationStatus,
+            expiresAt,
+            verifiedAt,
+            now,
+            now
+          ]
+        );
+      }
     } catch (err: any) {
       console.error('[NomineeController:Add:DBError]', err.message);
       res.status(500).json({ error: `Failed to persist nominee to database: ${err.message}` });
@@ -285,9 +321,29 @@ https://vaultkeep.internal`;
     const { id } = req.params;
 
     try {
+      const nomineeRow = await query('SELECT nominee_user_id, email, full_name, phone FROM nominees WHERE id = $1 AND owner_id = $2', [id, req.user.id]);
+
       await query(`DELETE FROM nominees WHERE id = $1 AND owner_id = $2`, [id, req.user.id]);
       await query(`DELETE FROM document_release_rules WHERE nominee_id = $1`, [id]);
       await query(`DELETE FROM release_grants WHERE nominee_id = $1`, [id]);
+
+      if (nomineeRow.rows && nomineeRow.rows.length > 0) {
+        const { nominee_user_id, email: nomEmail, full_name: nomName, phone: nomPhone } = nomineeRow.rows[0];
+        if (nominee_user_id) {
+          const remaining = await query('SELECT id FROM nominees WHERE nominee_user_id = $1 OR LOWER(email) = LOWER($2)', [nominee_user_id, nomEmail]);
+          if (!remaining.rows || remaining.rows.length === 0) {
+            // Restore standalone nominee record so registered nominee stays in nominees table
+            const now = new Date();
+            await query(
+              `INSERT INTO nominees (
+                id, owner_id, nominee_user_id, full_name, email, phone,
+                relationship_type, invitation_status, verified_at, created_at, updated_at
+              ) VALUES ($1, NULL, $2, $3, $4, $5, 'Family', 'ACCEPTED', $6, $7, $8)`,
+              [uuidv4(), nominee_user_id, nomName || 'Nominee', nomEmail, nomPhone || null, now, now, now]
+            );
+          }
+        }
+      }
 
       await AuditService.recordEvent({
         actorId: req.user.id,
@@ -402,10 +458,14 @@ https://vaultkeep.internal`;
               return;
             }
           }
+          if (existingUser.role !== 'ADMIN') {
+            await query(`UPDATE users SET role = 'NOMINEE', updated_at = NOW() WHERE id = $1`, [existingUser.id]);
+            existingUser.role = 'NOMINEE';
+          }
           authUser = {
             id: existingUser.id,
             email: existingUser.email,
-            role: existingUser.role,
+            role: 'NOMINEE',
             name: existingUser.name
           };
         } else if (password && password.length >= 8) {
@@ -582,7 +642,8 @@ https://vaultkeep.internal`;
          FROM nominees n
          JOIN users u ON u.id = n.owner_id
          LEFT JOIN account_lifecycle l ON l.owner_id = n.owner_id
-         WHERE LOWER(n.email) = LOWER($1) OR n.nominee_user_id = $2`,
+         WHERE (LOWER(n.email) = LOWER($1) OR n.nominee_user_id = $2)
+           AND n.owner_id IS NOT NULL`,
         [req.user.email, req.user.id]
       );
 
