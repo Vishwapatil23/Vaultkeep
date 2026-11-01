@@ -154,8 +154,8 @@ export class LifecycleController {
       if (req.body?.forceRelease && req.user) {
         await query(
           `UPDATE account_lifecycle
-           SET grace_period_ends_at = NOW() - INTERVAL '1 second', updated_at = NOW()
-           WHERE owner_id = $1 AND current_state = 'GRACE_PERIOD'`,
+           SET current_state = 'GRACE_PERIOD', grace_period_ends_at = NOW() - INTERVAL '1 second', updated_at = NOW()
+           WHERE owner_id = $1`,
           [req.user.id]
         );
       }

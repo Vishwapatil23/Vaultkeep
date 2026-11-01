@@ -68,7 +68,11 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   }),
-  evaluateInactivity: () => request('/lifecycle/evaluate', { method: 'POST' }),
+  evaluateInactivity: (data?: any) => request('/lifecycle/evaluate', {
+    method: 'POST',
+    headers: data ? { 'Content-Type': 'application/json' } : undefined,
+    body: data ? JSON.stringify(data) : undefined
+  }),
   simulateInactivity: () => request('/lifecycle/simulate-inactivity', { method: 'POST' }),
 
   // Documents

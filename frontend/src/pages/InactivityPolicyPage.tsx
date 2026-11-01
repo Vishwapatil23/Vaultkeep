@@ -81,7 +81,7 @@ export const InactivityPolicyPage: React.FC = () => {
       if (lifecycle) {
         lifecycle.grace_period_ends_at = new Date(Date.now() - 1000).toISOString();
       }
-      await api.evaluateInactivity();
+      await api.evaluateInactivity({ forceRelease: true });
       setNotice({
         type: 'success',
         message: 'Grace period elapsed. Lifecycle transitioned to ACCESS_GRANTED and release grants generated.'

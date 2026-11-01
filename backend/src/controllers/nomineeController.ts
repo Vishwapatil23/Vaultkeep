@@ -637,7 +637,9 @@ https://vaultkeep.internal`;
       const result = await query(
         `SELECT n.id as nominee_id, n.owner_id, u.name as owner_name, n.relationship_type,
                 n.invitation_status, COALESCE(l.current_state, 'ACTIVE') as lifecycle_state,
-                (l.current_state = 'ACCESS_GRANTED') as is_release_granted,
+                (l.current_state = 'ACCESS_GRANTED' OR EXISTS (
+                  SELECT 1 FROM document_release_rules r WHERE r.owner_id = n.owner_id AND r.nominee_id = n.id AND r.rule_status = 'ACTIVE'
+                )) as is_release_granted,
                 l.grace_period_ends_at
          FROM nominees n
          JOIN users u ON u.id = n.owner_id
@@ -673,34 +675,50 @@ https://vaultkeep.internal`;
 
     try {
       const result = await query(
-        `SELECT g.id as grant_id, d.id as document_id, d.original_name, d.category,
-                d.file_size_bytes, d.mime_type, d.encryption_algorithm, d.checksum_sha256,
-                u.name as owner_name, g.granted_at, g.expires_at
-         FROM release_grants g
-         JOIN documents d ON d.id = g.document_id
-         JOIN users u ON u.id = g.owner_id
-         JOIN account_lifecycle l ON l.owner_id = g.owner_id
-         JOIN nominees n ON n.id = g.nominee_id
-         WHERE (LOWER(n.email) = LOWER($1) OR n.nominee_user_id = $2)
-           AND g.grant_status = 'ACTIVE'
-           AND l.current_state = 'ACCESS_GRANTED'
-           AND d.upload_status != 'DELETED'`,
+        `SELECT DISTINCT ON (d.id)
+                COALESCE(g.id, r.id) as grant_id,
+                d.id as document_id,
+                d.original_name,
+                d.category,
+                d.file_size_bytes,
+                d.mime_type,
+                d.encryption_algorithm,
+                d.checksum_sha256,
+                u.name as owner_name,
+                COALESCE(g.granted_at, r.confirmed_at, r.created_at) as granted_at,
+                g.expires_at,
+                r.access_duration_days
+         FROM documents d
+         JOIN users u ON u.id = d.owner_id
+         JOIN nominees n ON (LOWER(n.email) = LOWER($1) OR n.nominee_user_id = $2)
+         LEFT JOIN document_release_rules r ON (r.document_id = d.id AND r.nominee_id = n.id AND r.rule_status = 'ACTIVE')
+         LEFT JOIN release_grants g ON (g.document_id = d.id AND g.nominee_id = n.id AND g.grant_status = 'ACTIVE')
+         WHERE (r.id IS NOT NULL OR g.id IS NOT NULL)
+           AND d.upload_status != 'DELETED'
+         ORDER BY d.id, granted_at DESC`,
         [req.user.email, req.user.id]
       );
 
-      const list = result.rows.map((row: any) => ({
-        grantId: row.grant_id,
-        documentId: row.document_id,
-        originalName: row.original_name,
-        category: row.category,
-        fileSizeBytes: parseInt(row.file_size_bytes || '0', 10),
-        mimeType: row.mime_type,
-        encryptionAlgorithm: row.encryption_algorithm,
-        checksumSha256: row.checksum_sha256,
-        ownerName: row.owner_name,
-        grantedAt: row.granted_at,
-        expiresAt: row.expires_at
-      }));
+      const list = result.rows.map((row: any) => {
+        let expiresAt = row.expires_at;
+        if (!expiresAt && row.access_duration_days && row.granted_at) {
+          const grantedDate = new Date(row.granted_at);
+          expiresAt = new Date(grantedDate.getTime() + row.access_duration_days * 24 * 60 * 60 * 1000).toISOString();
+        }
+        return {
+          grantId: row.grant_id,
+          documentId: row.document_id,
+          originalName: row.original_name,
+          category: row.category,
+          fileSizeBytes: parseInt(row.file_size_bytes || '0', 10),
+          mimeType: row.mime_type,
+          encryptionAlgorithm: row.encryption_algorithm,
+          checksumSha256: row.checksum_sha256,
+          ownerName: row.owner_name,
+          grantedAt: row.granted_at,
+          expiresAt: expiresAt || null
+        };
+      });
 
       res.json({ releasedDocuments: list });
     } catch (err: any) {
@@ -718,31 +736,27 @@ https://vaultkeep.internal`;
     const { id } = req.params; // documentId
 
     try {
-      const grantRes = await query(
-        `SELECT g.*, d.*, l.current_state as lifecycle_state
-         FROM release_grants g
-         JOIN documents d ON d.id = g.document_id
-         JOIN account_lifecycle l ON l.owner_id = g.owner_id
-         JOIN nominees n ON n.id = g.nominee_id
-         WHERE g.document_id = $1
-           AND (LOWER(n.email) = LOWER($2) OR n.nominee_user_id = $3)
-           AND g.grant_status = 'ACTIVE'
-           AND d.upload_status != 'DELETED'`,
+      const docRes = await query(
+        `SELECT d.*, u.name as owner_name, COALESCE(l.current_state, 'ACTIVE') as lifecycle_state
+         FROM documents d
+         JOIN users u ON u.id = d.owner_id
+         LEFT JOIN account_lifecycle l ON l.owner_id = d.owner_id
+         JOIN nominees n ON (LOWER(n.email) = LOWER($2) OR n.nominee_user_id = $3)
+         LEFT JOIN document_release_rules r ON (r.document_id = d.id AND r.nominee_id = n.id AND r.rule_status = 'ACTIVE')
+         LEFT JOIN release_grants g ON (g.document_id = d.id AND g.nominee_id = n.id AND g.grant_status = 'ACTIVE')
+         WHERE d.id = $1
+           AND (r.id IS NOT NULL OR g.id IS NOT NULL)
+           AND d.upload_status != 'DELETED'
+         LIMIT 1`,
         [id, req.user.email, req.user.id]
       );
 
-      if (!grantRes.rows || grantRes.rows.length === 0) {
-        res.status(403).json({ error: 'Access Denied: You do not have an active release grant for this document.' });
+      if (!docRes.rows || docRes.rows.length === 0) {
+        res.status(403).json({ error: 'Access Denied: You do not have an active release authorization for this document.' });
         return;
       }
 
-      const row = grantRes.rows[0];
-      if (row.lifecycle_state !== 'ACCESS_GRANTED') {
-        res.status(403).json({ error: 'Access Denied: Owner account has not reached authorized release state.' });
-        return;
-      }
-
-      const doc = row;
+      const doc = docRes.rows[0];
       const ciphertext = await StorageService.getEncryptedObject(doc.storage_key);
       const encryptionContext = {
         ownerId: doc.owner_id,
@@ -764,33 +778,26 @@ https://vaultkeep.internal`;
         actorId: req.user.id,
         actorEmail: req.user.email,
         actorRole: 'NOMINEE',
-        action: 'NOMINEE_RELEASED_DOCUMENT_DOWNLOADED',
+        action: 'NOMINEE_DOCUMENT_DOWNLOAD',
         resourceType: 'DOCUMENT',
         resourceId: doc.id,
         outcome: 'SUCCESS',
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
         metadata: {
-          grantId: row.id,
-          ownerId: doc.owner_id,
-          documentName: doc.original_name
+          documentName: doc.original_name,
+          category: doc.category,
+          ownerId: doc.owner_id
         }
       });
 
+      res.setHeader('Content-Type', doc.mime_type);
       res.setHeader('Content-Disposition', `attachment; filename="${doc.original_name}"`);
-      res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream');
       res.setHeader('Content-Length', plaintextBuffer.length);
       res.send(plaintextBuffer);
     } catch (err: any) {
       console.error('[NomineeController:Download:Error]', err.message);
-      await AuditService.recordSecurityEvent(
-        'NOMINEE_DECRYPTION_FAILURE',
-        req.user.email,
-        { documentId: id, error: err.message },
-        req.ip,
-        req.headers['user-agent']
-      );
-      res.status(500).json({ error: `Decryption or document download failed: ${err.message}` });
+      res.status(500).json({ error: `Decryption or download failed: ${err.message}` });
     }
   }
 

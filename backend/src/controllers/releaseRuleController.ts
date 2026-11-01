@@ -87,6 +87,24 @@ export class ReleaseRuleController {
         [ruleId, req.user.id, documentId, nomineeId, accessDurationDays || null, now, now, now, now, now]
       );
 
+      // 4. Synchronize release grant for this nominee
+      const grantId = uuidv4();
+      const expiresAt = accessDurationDays
+        ? new Date(now.getTime() + accessDurationDays * 24 * 60 * 60 * 1000)
+        : null;
+
+      try {
+        await query(
+          `INSERT INTO release_grants (id, owner_id, nominee_id, nominee_user_id, document_id, rule_id, grant_status, granted_at, expires_at, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', $7, $8, $9)
+           ON CONFLICT (nominee_id, document_id)
+           DO UPDATE SET rule_id = EXCLUDED.rule_id, grant_status = 'ACTIVE', expires_at = EXCLUDED.expires_at, granted_at = EXCLUDED.granted_at`,
+          [grantId, req.user.id, nomineeId, nominee.nominee_user_id || null, documentId, ruleId, now, expiresAt, now]
+        );
+      } catch (grantErr: any) {
+        console.warn('[ReleaseRuleController:SyncGrant:Warning]', grantErr.message);
+      }
+
       const rule = {
         id: ruleId,
         owner_id: req.user.id,
@@ -137,6 +155,7 @@ export class ReleaseRuleController {
     const { id } = req.params;
 
     try {
+      await query(`DELETE FROM release_grants WHERE rule_id = $1`, [id]);
       await query(`DELETE FROM document_release_rules WHERE id = $1 AND owner_id = $2`, [id, req.user.id]);
 
       await AuditService.recordEvent({
